@@ -1,0 +1,45 @@
+# LiteLLM gateway. Agents and the API only ever call these aliases,
+# so providers can be swapped here without code changes.
+model_list:
+  # ---- Conversation models ----
+  - model_name: agent-fast
+    litellm_params:
+      model: gemini/gemini-2.5-flash
+      api_key: os.environ/GEMINI_API_KEY
+  - model_name: agent-fast-fallback
+    litellm_params:
+      model: openai/gpt-4o-mini
+      api_key: os.environ/OPENAI_API_KEY
+  - model_name: agent-smart
+    litellm_params:
+      model: anthropic/claude-haiku-5-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  # ---- Embedding models (selectable per knowledge base) ----
+  - model_name: embed-gemini
+    litellm_params:
+      model: gemini/gemini-embedding-001
+      api_key: os.environ/GEMINI_API_KEY
+  - model_name: embed-vertex
+    litellm_params:
+      model: vertex_ai/gemini-embedding-001
+      vertex_project: os.environ/VERTEXAI_PROJECT
+      vertex_location: os.environ/VERTEXAI_LOCATION
+  - model_name: embed-bedrock-cohere
+    litellm_params:
+      model: bedrock/cohere.embed-multilingual-v3
+      aws_region_name: os.environ/AWS_REGION_NAME
+  # OpenRouter embeddings + local BGE-M3 are added in Phase 3.
+
+router_settings:
+  fallbacks:
+    - agent-fast: ["agent-fast-fallback"]
+    - agent-smart: ["agent-fast"]
+  num_retries: 1
+  timeout: 20
+
+litellm_settings:
+  drop_params: true
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
