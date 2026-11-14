@@ -129,6 +129,15 @@ services:
       LITELLM_URL: http://litellm:4000
       LITELLM_API_KEY: ${LITELLM_MASTER_KEY}
       SARVAM_API_KEY: ${SARVAM_API_KEY}
+      # Voice pipeline (defaults live in agent/settings.py)
+      STT_MODEL: ${STT_MODEL:-saaras:v4}
+      STT_MODE: ${STT_MODE:-transcribe}
+      TTS_MODEL: ${TTS_MODEL:-bulbul:v3}
+      TTS_SPEAKER: ${TTS_SPEAKER:-priya}
+      LLM_MODEL: ${LLM_MODEL:-agent-fast}
+      ENDPOINTING_MIN_DELAY: ${ENDPOINTING_MIN_DELAY:-0.4}
+      ENDPOINTING_MAX_DELAY: ${ENDPOINTING_MAX_DELAY:-2.5}
+      PREEMPTIVE_GENERATION: ${PREEMPTIVE_GENERATION:-true}
     depends_on:
       livekit:
         condition: service_started

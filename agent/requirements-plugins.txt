@@ -1,0 +1,2 @@
+# Installed in a second layer so the heavy core layer stays cached.
+livekit-agents[sarvam,silero,openai]==1.8.12
