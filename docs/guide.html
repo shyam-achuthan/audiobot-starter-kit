@@ -1,0 +1,747 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AudioBots Guide</title>
+<meta name="description" content="Setup and user guide for AudioBots: low-latency voice agents for the web and SIP, built for India on open-source LiveKit.">
+<style>
+:root {
+  --bg: #fbfaf8;
+  --surface: #ffffff;
+  --surface-2: #f3f1ed;
+  --text: #1c1b19;
+  --muted: #5f5b54;
+  --faint: #8a857c;
+  --border: #e4e0d8;
+  --accent: #1f6f5c;
+  --accent-soft: #e3f1ec;
+  --warn: #9a5b00;
+  --warn-soft: #fbf0dc;
+  --danger: #a33a2a;
+  --code-bg: #f3f1ed;
+  --d-box: #ffffff;
+  --d-stroke: #b9b2a5;
+  --d-accent: #1f6f5c;
+  --d-accent-fill: #e3f1ec;
+  --d-ext-fill: #f6efe2;
+  --d-ext: #9a5b00;
+  --d-plan-fill: #f3f1ed;
+  --radius: 10px;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --sans: ui-sans-serif, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141412; --surface: #1c1b19; --surface-2: #24231f; --text: #ecebe6; --muted: #b3aea4;
+    --faint: #8a857c; --border: #34322d; --accent: #5cc3a6; --accent-soft: #1c332c; --warn: #e0a64a;
+    --warn-soft: #33281a; --danger: #ef8a78; --code-bg: #24231f; --d-box: #1c1b19; --d-stroke: #5a564e;
+    --d-accent: #5cc3a6; --d-accent-fill: #1c332c; --d-ext-fill: #2e2619; --d-ext: #e0a64a; --d-plan-fill: #24231f;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141412; --surface: #1c1b19; --surface-2: #24231f; --text: #ecebe6; --muted: #b3aea4;
+  --faint: #8a857c; --border: #34322d; --accent: #5cc3a6; --accent-soft: #1c332c; --warn: #e0a64a;
+  --warn-soft: #33281a; --danger: #ef8a78; --code-bg: #24231f; --d-box: #1c1b19; --d-stroke: #5a564e;
+  --d-accent: #5cc3a6; --d-accent-fill: #1c332c; --d-ext-fill: #2e2619; --d-ext: #e0a64a; --d-plan-fill: #24231f;
+}
+* { box-sizing: border-box; }
+html { scroll-padding-top: 72px; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 var(--sans); }
+a { color: var(--accent); }
+code, pre, kbd { font-family: var(--mono); font-size: .88em; }
+code { background: var(--code-bg); padding: .1em .35em; border-radius: 5px; }
+header.top {
+  position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px); border-bottom: 1px solid var(--border);
+}
+header.top .brand { font-weight: 700; letter-spacing: -.01em; }
+header.top .tag { color: var(--muted); font-size: .9rem; }
+header.top .spacer { flex: 1; }
+.btn {
+  border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 8px;
+  padding: 6px 10px; font: inherit; font-size: .85rem; cursor: pointer;
+}
+.btn:hover { border-color: var(--accent); }
+#menu-btn { display: none; }
+.layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); max-width: 1180px; margin: 0 auto; }
+nav.toc {
+  position: sticky; top: 57px; align-self: start; height: calc(100vh - 57px); overflow: auto;
+  padding: 24px 16px; border-right: 1px solid var(--border); font-size: .9rem;
+}
+nav.toc ol { list-style: none; margin: 0; padding: 0; }
+nav.toc li a { display: block; padding: 5px 10px; border-radius: 6px; color: var(--muted); text-decoration: none; }
+nav.toc li a:hover, nav.toc li a.active { background: var(--accent-soft); color: var(--text); }
+nav.toc .group { margin: 16px 10px 4px; font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); }
+main { padding: 32px 40px 96px; min-width: 0; }
+section { margin-bottom: 56px; }
+h1 { font-size: 2.1rem; line-height: 1.2; letter-spacing: -.02em; margin: 0 0 8px; }
+h2 { font-size: 1.45rem; letter-spacing: -.01em; margin: 0 0 12px; padding-top: 8px; }
+h3 { font-size: 1.08rem; margin: 28px 0 8px; }
+p, li { color: var(--text); }
+.lead { font-size: 1.1rem; color: var(--muted); max-width: 70ch; }
+.muted { color: var(--muted); }
+.pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; padding: 0; list-style: none; }
+.pills li { background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 3px 12px; font-size: .85rem; color: var(--muted); }
+.grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+.card h3 { margin: 0 0 6px; font-size: 1rem; }
+.card p { margin: 0; color: var(--muted); font-size: .93rem; }
+.callout { border-radius: var(--radius); padding: 12px 16px; margin: 16px 0; border: 1px solid var(--border); background: var(--surface); }
+.callout.tip { background: var(--accent-soft); border-color: transparent; }
+.callout.warn { background: var(--warn-soft); border-color: transparent; }
+.callout strong:first-child { margin-right: 4px; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); margin: 12px 0; }
+table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { background: var(--surface-2); font-weight: 600; font-size: .82rem; color: var(--muted); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td code { white-space: nowrap; }
+.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.status-done { color: var(--accent); font-weight: 600; }
+.status-next { color: var(--warn); font-weight: 600; }
+.code { position: relative; margin: 12px 0; }
+.code pre {
+  margin: 0; padding: 14px 16px; overflow-x: auto; background: var(--code-bg); border: 1px solid var(--border);
+  border-radius: var(--radius); line-height: 1.5;
+}
+.code .copy { position: absolute; top: 8px; right: 8px; opacity: .85; }
+.steps { counter-reset: step; list-style: none; padding: 0; margin: 12px 0; }
+.steps > li { counter-increment: step; position: relative; padding: 0 0 18px 44px; }
+.steps > li::before {
+  content: counter(step); position: absolute; left: 0; top: 0; width: 30px; height: 30px; border-radius: 50%;
+  background: var(--accent-soft); color: var(--accent); font-weight: 700; display: grid; place-items: center; font-size: .9rem;
+}
+.steps > li > strong { display: block; margin-bottom: 2px; }
+figure { margin: 18px 0; }
+.diagram { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; overflow-x: auto; }
+.diagram svg { display: block; width: 100%; min-width: 760px; height: auto; }
+figcaption { color: var(--muted); font-size: .88rem; margin-top: 8px; }
+svg text { font-family: var(--sans); fill: var(--text); }
+svg .box { fill: var(--d-box); stroke: var(--d-stroke); stroke-width: 1.2; }
+svg .acc { fill: var(--d-accent-fill); stroke: var(--d-accent); stroke-width: 1.4; }
+svg .ext { fill: var(--d-ext-fill); stroke: var(--d-ext); stroke-width: 1.2; }
+svg .plan { fill: var(--d-plan-fill); stroke: var(--d-stroke); stroke-width: 1.2; stroke-dasharray: 5 4; }
+svg .group { fill: none; stroke: var(--d-stroke); stroke-width: 1; stroke-dasharray: 3 4; }
+svg .t-title { font-weight: 650; font-size: 14px; }
+svg .t-sub { font-size: 11.5px; fill: var(--muted); }
+svg .t-label { font-size: 11px; fill: var(--muted); }
+svg .t-group { font-size: 11px; fill: var(--faint); letter-spacing: .06em; text-transform: uppercase; }
+svg .wire { stroke: var(--d-stroke); stroke-width: 1.4; fill: none; }
+svg .wire-acc { stroke: var(--d-accent); stroke-width: 1.8; fill: none; }
+svg .wire-plan { stroke: var(--d-stroke); stroke-width: 1.4; fill: none; stroke-dasharray: 5 4; }
+svg .head { fill: var(--d-stroke); }
+svg .head-acc { fill: var(--d-accent); }
+svg .seg-speech { fill: var(--d-stroke); opacity: .45; }
+svg .seg-wait { fill: var(--d-ext-fill); stroke: var(--d-ext); }
+svg .seg-stt { fill: var(--d-accent-fill); stroke: var(--d-accent); }
+svg .seg-llm { fill: var(--d-ext); opacity: .35; stroke: var(--d-ext); }
+svg .seg-tts { fill: var(--d-accent); opacity: .55; }
+svg .grid-line { stroke: var(--border); stroke-width: 1; }
+footer { color: var(--faint); font-size: .85rem; border-top: 1px solid var(--border); padding-top: 16px; }
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+  #menu-btn { display: inline-block; }
+  nav.toc {
+    position: fixed; top: 57px; left: 0; width: min(300px, 85vw); background: var(--bg); z-index: 9;
+    transform: translateX(-102%); transition: transform .2s ease; box-shadow: 0 10px 30px rgba(0,0,0,.15);
+  }
+  nav.toc.open { transform: none; }
+  main { padding: 24px 16px 80px; }
+  h1 { font-size: 1.7rem; }
+  header.top .tag { display: none; }
+}
+@media print {
+  header.top, nav.toc, .copy { display: none !important; }
+  .layout { display: block; }
+  main { padding: 0; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <button class="btn" id="menu-btn" aria-label="Open contents">☰</button>
+  <span class="brand">AudioBots</span>
+  <span class="tag">Setup &amp; user guide</span>
+  <span class="spacer"></span>
+  <button class="btn" id="theme-btn" aria-label="Toggle dark mode">◐ Theme</button>
+</header>
+
+<div class="layout">
+<nav class="toc" id="toc" aria-label="Contents">
+  <ol>
+    <li class="group">Start</li>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#quickstart">Quick start</a></li>
+    <li><a href="#keys">Provider keys</a></li>
+    <li><a href="#vertex">Vertex AI (Mumbai)</a></li>
+    <li class="group">Understand</li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#call-flow">How a call works</a></li>
+    <li><a href="#latency">Latency</a></li>
+    <li><a href="#languages">Languages</a></li>
+    <li class="group">Use</li>
+    <li><a href="#demo">Demo page</a></li>
+    <li><a href="#workflows">Workflows</a></li>
+    <li><a href="#services">Services &amp; URLs</a></li>
+    <li><a href="#commands">Commands</a></li>
+    <li class="group">Configure</li>
+    <li><a href="#config">Configuration (.env)</a></li>
+    <li><a href="#providers">Swapping providers</a></li>
+    <li><a href="#testing">Testing &amp; benchmarks</a></li>
+    <li class="group">Reference</li>
+    <li><a href="#structure">Project structure</a></li>
+    <li><a href="#security">Security &amp; secrets</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#roadmap">Roadmap</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<section id="overview">
+  <h1>AudioBots</h1>
+  <p class="lead">Low-latency voice agents for sales, support and lead qualification, built for the Indian market. One agent handles website visitors (WebRTC) and, from Phase 7, phone calls over SIP. Everything runs in Docker, mostly on open-source software.</p>
+  <ul class="pills">
+    <li>LiveKit (self-hosted)</li><li>Sarvam STT &amp; TTS</li><li>Gemini via LiteLLM</li>
+    <li>English · Hindi · Hinglish · Tamil · Telugu · Kannada · Malayalam</li><li>Docker Compose</li>
+  </ul>
+
+  <h3>What works today</h3>
+  <div class="grid">
+    <div class="card"><h3>Voice loop</h3><p>Microphone to speech recognition to LLM to speech, streamed end to end, with barge-in (interrupt the bot by talking).</p></div>
+    <div class="card"><h3>Auto language</h3><p>Detects the caller's language on every utterance. The reply and the voice switch to match.</p></div>
+    <div class="card"><h3>Local turn-taking</h3><p>Voice activity detection and an end-of-turn model run inside the agent. Nothing goes to LiveKit Cloud.</p></div>
+    <div class="card"><h3>Latency telemetry</h3><p>Every turn's timings (end of turn, STT, LLM, TTS, total) are logged and shown live on the demo page.</p></div>
+  </div>
+  <div class="callout warn"><strong>Status:</strong> Phases 0–1 are done (stack and voice loop). Workflows with tools, the knowledge base, admin, CRM sync, recording and SIP come in later phases. See the <a href="#roadmap">roadmap</a>.</div>
+</section>
+
+<section id="quickstart">
+  <h2>Quick start</h2>
+  <h3>Prerequisites</h3>
+  <div class="table-wrap"><table>
+    <tr><th>Requirement</th><th>Notes</th></tr>
+    <tr><td>Docker Desktop (macOS/Windows) or Docker Engine + Compose v2 (Linux)</td><td>Give Docker at least 6 GB RAM. The full stack uses about 2 GB at idle.</td></tr>
+    <tr><td><code>git</code>, <code>curl</code>, <code>bash</code></td><td>The macOS defaults are fine (the script supports bash 3.2).</td></tr>
+    <tr><td>Free ports</td><td><code>3000 4000 4100 5433 7880 7881 9000 9001</code> TCP and <code>50000–50100</code> UDP</td></tr>
+    <tr><td>API keys</td><td><a href="#keys">Sarvam</a> (speech) and <a href="#keys">Gemini</a> (LLM)</td></tr>
+    <tr><td>Chrome or Edge</td><td>For the demo page (microphone access on <code>localhost</code>)</td></tr>
+  </table></div>
+
+  <h3>Install</h3>
+  <ol class="steps">
+    <li><strong>Clone the repository</strong>
+      <div class="code"><pre>git clone git@github.com:shyam-achuthan/audiobot-starter-kit.git audiobots
+cd audiobots</pre></div></li>
+    <li><strong>Run the setup script</strong>
+      It checks prerequisites and creates <code>.env</code> with generated secrets and your LAN IP. It then asks for your Sarvam and Gemini keys (input is hidden), builds and starts the containers, waits for them to become healthy, and tests the API and the LLM.
+      <div class="code"><pre>./setup.sh</pre></div>
+      <p class="muted">Options: <code>--yes</code> runs without prompts, <code>--no-start</code> only prepares <code>.env</code>. It's safe to re-run; existing values and data are kept.</p></li>
+    <li><strong>Talk to the bot</strong>
+      Open <a href="http://localhost:3000/demo">http://localhost:3000/demo</a> in Chrome, pick a workflow, click <em>Start call</em>, allow the microphone, and say hello in any supported language.</li>
+  </ol>
+  <div class="callout warn"><strong>First build is slow on some networks.</strong> The agent image downloads about 200 MB of Python packages from PyPI. If your ISP's route to PyPI is slow, this can take 20–40 minutes. The Dockerfile caches the heavy layer, so later builds take a few minutes. See <a href="#troubleshooting">Troubleshooting</a>.</div>
+
+  <h3>Manual setup (without the script)</h3>
+  <div class="code"><pre>make env                 # create .env (secrets + LAN IP)
+$EDITOR .env             # set SARVAM_API_KEY and GEMINI_API_KEY
+make up                  # build + start
+make health              # db, livekit, litellm should all be ok</pre></div>
+</section>
+
+<section id="keys">
+  <h2>Provider keys</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Key (in <code>.env</code>)</th><th>Used for</th><th>Where to get it</th><th>Needed</th></tr>
+    <tr><td><code>SARVAM_API_KEY</code></td><td>Speech-to-text (<code>saaras:v4</code>) and text-to-speech (<code>bulbul:v3</code>)</td><td><a href="https://dashboard.sarvam.ai">dashboard.sarvam.ai</a></td><td>Yes</td></tr>
+    <tr><td><code>GEMINI_API_KEY</code></td><td>Default LLM (Gemini Flash-Lite) through LiteLLM</td><td><a href="https://aistudio.google.com/apikey">aistudio.google.com/apikey</a></td><td>Yes</td></tr>
+    <tr><td><code>VERTEXAI_PROJECT</code> + key file</td><td>Gemini served from Mumbai (lower latency)</td><td><a href="#vertex">See below</a></td><td>Optional</td></tr>
+    <tr><td><code>OPENAI_API_KEY</code></td><td>LLM fallback (<code>agent-fast-fallback</code>)</td><td>platform.openai.com</td><td>Optional</td></tr>
+    <tr><td><code>ANTHROPIC_API_KEY</code></td><td><code>agent-claude</code> alias</td><td>console.anthropic.com</td><td>Optional</td></tr>
+    <tr><td><code>OPENROUTER_API_KEY</code>, <code>AWS_*</code></td><td>Embedding providers (Phase 3)</td><td>openrouter.ai, AWS console</td><td>Optional</td></tr>
+  </table></div>
+  <p>After changing keys, restart the services that read them:</p>
+  <div class="code"><pre>docker compose up -d --force-recreate agent litellm</pre></div>
+  <div class="callout tip"><strong>Missing a key?</strong> Calls still connect, but the demo page shows a clear error such as "Agent error (config): Sarvam API key is required…".</div>
+</section>
+
+<section id="vertex">
+  <h2>Vertex AI (Gemini from Mumbai)</h2>
+  <p>The Gemini API in Google AI Studio is served from outside India, and from here its time to first token was 0.8–1.7 s. Vertex AI can serve Gemini from <code>asia-south1</code> (Mumbai), which should cut a few hundred milliseconds. This is optional.</p>
+  <ol class="steps">
+    <li><strong>Pick a Google Cloud project</strong> at console.cloud.google.com and note its project ID.</li>
+    <li><strong>Enable the Vertex AI API</strong>: APIs &amp; Services → Library → "Vertex AI API" → Enable.</li>
+    <li><strong>Create a service account</strong>: IAM &amp; Admin → Service Accounts → Create, name it <code>audiobots-llm</code>, role <em>Vertex AI User</em>.</li>
+    <li><strong>Create a JSON key</strong>: open the account → Keys → Add key → JSON. Save it as <code>infra/litellm/secrets/vertex-sa.json</code>. That folder is gitignored and mounted read-only into LiteLLM.</li>
+    <li><strong>Set the project</strong> in <code>.env</code>: <code>VERTEXAI_PROJECT=&lt;id&gt;</code>, <code>VERTEXAI_LOCATION=asia-south1</code>, then <code>docker compose up -d --force-recreate litellm</code>.</li>
+  </ol>
+  <p class="muted">The same steps with the CLI (needs <code>brew install --cask google-cloud-sdk</code> and <code>gcloud auth login</code>):</p>
+  <div class="code"><pre>P=your-project-id
+gcloud services enable aiplatform.googleapis.com --project $P
+gcloud iam service-accounts create audiobots-llm --project $P
+gcloud projects add-iam-policy-binding $P \
+  --member "serviceAccount:audiobots-llm@$P.iam.gserviceaccount.com" --role roles/aiplatform.user
+gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
+  --iam-account audiobots-llm@$P.iam.gserviceaccount.com</pre></div>
+  <div class="callout warn"><strong>Not wired as the default yet.</strong> Once the key is in place, the next step is to benchmark which Gemini models Vertex serves in Mumbai and point <code>agent-fast</code> at the fastest one.</div>
+</section>
+
+<section id="architecture">
+  <h2>Architecture</h2>
+  <p>LiveKit carries the audio. The Python agent runs the conversation. The NestJS API owns data and business logic. LiteLLM is the single gateway to every LLM and embedding provider, so providers change in config, not code.</p>
+  <figure>
+    <div class="diagram">
+    <svg viewBox="0 0 980 560" role="img" aria-labelledby="arch-title">
+      <title id="arch-title">AudioBots architecture: clients connect through LiveKit to the agent worker, which calls Sarvam, LiteLLM and the API.</title>
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="head"/></marker>
+        <marker id="aha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="head-acc"/></marker>
+      </defs>
+
+      <!-- Clients -->
+      <text x="20" y="28" class="t-group">Callers</text>
+      <rect x="20" y="40" width="180" height="70" rx="10" class="box"/>
+      <text x="36" y="68" class="t-title">Website visitor</text>
+      <text x="36" y="88" class="t-sub">Demo page / widget (WebRTC)</text>
+      <rect x="20" y="130" width="180" height="70" rx="10" class="plan"/>
+      <text x="36" y="158" class="t-title">Phone caller</text>
+      <text x="36" y="178" class="t-sub">SIP trunk · Phase 7</text>
+
+      <!-- LiveKit -->
+      <text x="260" y="28" class="t-group">Media</text>
+      <rect x="260" y="40" width="190" height="70" rx="10" class="acc"/>
+      <text x="276" y="68" class="t-title">LiveKit Server</text>
+      <text x="276" y="88" class="t-sub">WebRTC media · :7880</text>
+      <rect x="260" y="130" width="190" height="70" rx="10" class="plan"/>
+      <text x="276" y="158" class="t-title">LiveKit SIP</text>
+      <text x="276" y="178" class="t-sub">SIP ↔ room bridge · Phase 7</text>
+
+      <path d="M200 75 H258" class="wire-acc" marker-end="url(#aha)"/>
+      <path d="M200 165 H258" class="wire-plan" marker-end="url(#ah)"/>
+      <path d="M355 130 V112" class="wire-plan" marker-end="url(#ah)"/>
+
+      <!-- Agent worker group -->
+      <rect x="510" y="18" width="450" height="225" rx="14" class="group"/>
+      <text x="526" y="38" class="t-group">Agent worker (Python · LiveKit Agents)</text>
+      <rect x="526" y="52" width="100" height="56" rx="8" class="box"/>
+      <text x="538" y="76" class="t-title">VAD</text>
+      <text x="538" y="94" class="t-sub">Silero</text>
+      <rect x="638" y="52" width="100" height="56" rx="8" class="box"/>
+      <text x="650" y="76" class="t-title">Turn</text>
+      <text x="650" y="94" class="t-sub">v1-mini local</text>
+      <rect x="750" y="52" width="94" height="56" rx="8" class="acc"/>
+      <text x="762" y="76" class="t-title">STT</text>
+      <text x="762" y="94" class="t-sub">Sarvam</text>
+      <rect x="856" y="52" width="90" height="56" rx="8" class="acc"/>
+      <text x="868" y="76" class="t-title">LLM</text>
+      <text x="868" y="94" class="t-sub">via LiteLLM</text>
+      <rect x="750" y="128" width="94" height="56" rx="8" class="acc"/>
+      <text x="762" y="152" class="t-title">TTS</text>
+      <text x="762" y="170" class="t-sub">Sarvam</text>
+      <rect x="526" y="128" width="212" height="56" rx="8" class="box"/>
+      <text x="538" y="152" class="t-title">Telemetry + language</text>
+      <text x="538" y="170" class="t-sub">per-turn latency · voice follows caller</text>
+      <rect x="856" y="128" width="90" height="56" rx="8" class="plan"/>
+      <text x="868" y="152" class="t-title">Tools</text>
+      <text x="868" y="170" class="t-sub">Phase 2</text>
+      <path d="M626 80 H636" class="wire" marker-end="url(#ah)"/>
+      <path d="M738 80 H748" class="wire" marker-end="url(#ah)"/>
+      <path d="M844 80 H854" class="wire" marker-end="url(#ah)"/>
+      <path d="M900 108 V118 Q900 156 846 156" class="wire" marker-end="url(#ah)"/>
+      <text x="526" y="225" class="t-label">audio in → VAD → end-of-turn → transcript → reply → speech out (all streamed)</text>
+
+      <path d="M450 75 H508" class="wire-acc" marker-end="url(#aha)"/>
+      <path d="M508 90 H452" class="wire-acc" marker-end="url(#aha)"/>
+      <text x="458" y="66" class="t-label">audio</text>
+
+      <!-- External providers -->
+      <text x="20" y="268" class="t-group">Cloud providers (hosted today, swappable)</text>
+      <rect x="20" y="280" width="200" height="66" rx="10" class="ext"/>
+      <text x="36" y="306" class="t-title">Sarvam AI</text>
+      <text x="36" y="326" class="t-sub">saaras:v4 STT · bulbul:v3 TTS</text>
+      <rect x="240" y="280" width="210" height="66" rx="10" class="ext"/>
+      <text x="256" y="306" class="t-title">Google Gemini</text>
+      <text x="256" y="326" class="t-sub">AI Studio · or Vertex Mumbai</text>
+
+      <!-- Platform services -->
+      <text x="510" y="268" class="t-group">Platform (Docker)</text>
+      <rect x="510" y="280" width="210" height="66" rx="10" class="box"/>
+      <text x="526" y="306" class="t-title">LiteLLM gateway</text>
+      <text x="526" y="326" class="t-sub">aliases · fallbacks · :4100</text>
+      <rect x="740" y="280" width="220" height="66" rx="10" class="box"/>
+      <text x="756" y="306" class="t-title">NestJS API</text>
+      <text x="756" y="326" class="t-sub">tokens · health · business logic · :4000</text>
+
+      <path d="M900 184 V278" class="wire-plan" marker-end="url(#ah)"/>
+      <path d="M880 108 Q880 250 640 278" class="wire" marker-end="url(#ah)"/>
+      <path d="M510 313 H452" class="wire" marker-end="url(#ah)"/>
+      <path d="M797 108 Q797 220 230 290" class="wire" marker-end="url(#ah)"/>
+      <text x="300" y="250" class="t-label">speech APIs</text>
+
+      <rect x="510" y="380" width="140" height="62" rx="10" class="box"/>
+      <text x="524" y="405" class="t-title">Postgres</text>
+      <text x="524" y="424" class="t-sub">+ pgvector</text>
+      <rect x="665" y="380" width="120" height="62" rx="10" class="box"/>
+      <text x="679" y="405" class="t-title">Redis</text>
+      <text x="679" y="424" class="t-sub">LiveKit state</text>
+      <rect x="800" y="380" width="160" height="62" rx="10" class="box"/>
+      <text x="814" y="405" class="t-title">RustFS (S3)</text>
+      <text x="814" y="424" class="t-sub">recordings · Phase 6</text>
+      <path d="M800 346 Q760 366 600 378" class="wire" marker-end="url(#ah)"/>
+
+      <rect x="20" y="380" width="430" height="62" rx="10" class="box"/>
+      <text x="36" y="405" class="t-title">Next.js web · :3000</text>
+      <text x="36" y="424" class="t-sub">/demo (voice test) · /admin (health now, full admin in Phase 4)</text>
+      <path d="M450 411 Q620 470 760 348" class="wire" marker-end="url(#ah)"/>
+      <path d="M110 380 V112" class="wire" marker-end="url(#ah)"/>
+      <text x="118" y="250" class="t-label">serves page</text>
+
+      <!-- Legend -->
+      <rect x="20" y="490" width="16" height="12" rx="3" class="acc"/><text x="42" y="500" class="t-label">real-time audio path</text>
+      <rect x="190" y="490" width="16" height="12" rx="3" class="ext"/><text x="212" y="500" class="t-label">external API (needs key)</text>
+      <rect x="380" y="490" width="16" height="12" rx="3" class="plan"/><text x="402" y="500" class="t-label">planned (later phase)</text>
+      <rect x="560" y="490" width="16" height="12" rx="3" class="box"/><text x="582" y="500" class="t-label">self-hosted container</text>
+    </svg>
+    </div>
+    <figcaption>Every box with a port runs as a Docker Compose service. Dashed boxes arrive in later phases.</figcaption>
+  </figure>
+
+  <h3>Design principles</h3>
+  <ul>
+    <li><strong>The agent only handles the conversation.</strong> Leads, tickets, bookings, knowledge search and webhooks live behind the NestJS API. The agent calls them as HTTP tools (Phase 2).</li>
+    <li><strong>Every model is behind an alias.</strong> The agent asks LiteLLM for <code>agent-fast</code>, not for a vendor model, so a switch is a one-line change in <code>infra/litellm/config.yaml</code>.</li>
+    <li><strong>Hosted first, self-hosted later.</strong> STT, TTS and LLM providers sit in a registry (<code>agent/pipeline.py</code>), so open models (IndicConformer, Indic Parler, vLLM) can drop in later.</li>
+    <li><strong>Data stays local.</strong> Turn detection runs in the container, and session recording to LiveKit Cloud is turned off.</li>
+  </ul>
+</section>
+
+<section id="call-flow">
+  <h2>How a call works</h2>
+  <ol class="steps">
+    <li><strong>Token</strong> The demo page calls <code>POST /v1/livekit/token</code> (through the web app's <code>/backend</code> proxy) with the chosen workflow. The API creates a fresh room and a 15-minute token. The workflow goes into the participant metadata.</li>
+    <li><strong>Join</strong> The browser joins the room over WebRTC. LiveKit automatically dispatches an idle agent worker process to the new room.</li>
+    <li><strong>Greet</strong> The agent reads the workflow, builds the pipeline from <code>.env</code> settings and speaks a greeting that says it's an AI assistant.</li>
+    <li><strong>Listen</strong> Silero VAD detects speech. Sarvam streams interim transcripts (shown as live captions) and detects the language.</li>
+    <li><strong>End of turn</strong> After 0.25 s of silence, the local turn detector (English and Hindi) or a fixed delay (other languages) decides that the caller has finished. The transcript is finalized.</li>
+    <li><strong>Reply</strong> The LLM streams its reply. Sentences go to Sarvam TTS as they are produced, so speech starts before the full answer exists.</li>
+    <li><strong>Interrupt</strong> If the caller talks over the bot, playback stops at once (VAD-based barge-in). If the "interruption" turns out to be just noise, the bot resumes.</li>
+    <li><strong>Telemetry</strong> Each finished turn publishes its text and timings on the room's <code>agent</code> data channel. The agent logs them as JSON and the demo page shows them.</li>
+  </ol>
+</section>
+
+<section id="latency">
+  <h2>Latency</h2>
+  <p><strong>Voice-to-voice</strong> is the time from when the caller stops speaking to when the bot's voice starts. The target is ≤ 800 ms. These are measured values from scripted calls on the local Docker stack (Nov 2026):</p>
+  <figure>
+    <div class="diagram">
+    <svg viewBox="0 0 980 230" role="img" aria-labelledby="lat-title">
+      <title id="lat-title">Typical turn timeline: about 0.8 s to detect end of turn, about 1 s for the LLM's first token, and about 0.2 s for the first audio, totalling around 2 s.</title>
+      <!-- scale: 0..2400ms -> x 140..940  (1ms = 0.3333px) -->
+      <g>
+        <line x1="140" y1="30" x2="140" y2="170" class="grid-line"/>
+        <line x1="306.7" y1="30" x2="306.7" y2="170" class="grid-line"/>
+        <line x1="473.3" y1="30" x2="473.3" y2="170" class="grid-line"/>
+        <line x1="640" y1="30" x2="640" y2="170" class="grid-line"/>
+        <line x1="806.7" y1="30" x2="806.7" y2="170" class="grid-line"/>
+        <text x="140" y="190" class="t-label" text-anchor="middle">0</text>
+        <text x="306.7" y="190" class="t-label" text-anchor="middle">500 ms</text>
+        <text x="473.3" y="190" class="t-label" text-anchor="middle">1000 ms</text>
+        <text x="640" y="190" class="t-label" text-anchor="middle">1500 ms</text>
+        <text x="806.7" y="190" class="t-label" text-anchor="middle">2000 ms</text>
+      </g>
+      <text x="20" y="54" class="t-sub">Caller</text>
+      <rect x="72" y="40" width="68" height="22" rx="4" class="seg-speech"/>
+      <text x="106" y="55" class="t-label" text-anchor="middle">speaking</text>
+
+      <text x="20" y="88" class="t-sub">End of turn</text>
+      <rect x="140" y="74" width="83" height="22" rx="4" class="seg-wait"/>
+      <text x="181" y="89" class="t-label" text-anchor="middle">VAD 250</text>
+      <rect x="223" y="74" width="100" height="22" rx="4" class="seg-wait"/>
+      <text x="273" y="89" class="t-label" text-anchor="middle">min delay 300</text>
+      <rect x="323" y="74" width="80" height="22" rx="4" class="seg-stt"/>
+      <text x="363" y="89" class="t-label" text-anchor="middle">STT ~150</text>
+
+      <text x="20" y="122" class="t-sub">LLM</text>
+      <rect x="403" y="108" width="333" height="22" rx="4" class="seg-llm"/>
+      <text x="570" y="123" class="t-label" text-anchor="middle">time to first token ~0.8–1.3 s (Gemini Flash-Lite)</text>
+
+      <text x="20" y="156" class="t-sub">TTS</text>
+      <rect x="736" y="142" width="63" height="22" rx="4" class="seg-tts"/>
+      <text x="767" y="157" class="t-label" text-anchor="middle">~190</text>
+      <path d="M800 142 V36" class="wire-acc"/>
+      <text x="808" y="44" class="t-title">bot speaks ≈ 2.0 s</text>
+      <text x="140" y="218" class="t-label">Target 800 ms. The biggest remaining costs are the LLM's first token (from India) and the fixed end-of-turn wait.</text>
+    </svg>
+    </div>
+    <figcaption>One typical turn. The end-of-turn wait is VAD silence, then the endpointing delay, then the STT flush.</figcaption>
+  </figure>
+
+  <h3>Measured components</h3>
+  <div class="table-wrap"><table>
+    <tr><th>Stage</th><th>Measured</th><th>Notes</th></tr>
+    <tr><td>Sarvam STT final, when flushed at end of speech</td><td class="num">≈ 130 ms</td><td>Not flushed: about 590 ms. The realtime endpoint was no faster (about 150 ms).</td></tr>
+    <tr><td>End-of-turn decision in the agent</td><td class="num">≈ 780–840 ms</td><td>0.25 s VAD + 0.3 s min delay + flush. The worst case is capped at 1.2 s.</td></tr>
+    <tr><td>Gemini Flash-Lite, first token (AI Studio)</td><td class="num">≈ 0.8–1.7 s</td><td>Varies by turn. Vertex Mumbai is the next experiment.</td></tr>
+    <tr><td>Gemini 3.5 Flash, thinking off</td><td class="num">≈ 1.8 s</td><td>Used as <code>agent-smart</code></td></tr>
+    <tr><td>Gemini 3.8 Flash / flash-latest</td><td class="num">&gt; 30 s</td><td>Always thinks before answering, so it's unusable for voice</td></tr>
+    <tr><td>Sarvam TTS, first audio (streaming)</td><td class="num">≈ 190 ms</td><td>About 320 ms on a cold connection. <code>bulbul:v3</code> ≈ <code>v4-flash</code>.</td></tr>
+    <tr><td><strong>Voice-to-voice (total)</strong></td><td class="num"><strong>≈ 1.9–2.3 s</strong></td><td>English, Hindi and Tamil scripted calls</td></tr>
+  </table></div>
+
+  <h3>Tuning knobs</h3>
+  <div class="table-wrap"><table>
+    <tr><th>Setting</th><th>Default</th><th>Effect</th></tr>
+    <tr><td><code>VAD_MIN_SILENCE</code></td><td>0.25</td><td>Silence before VAD reports end of speech. LiveKit's minimum with the turn detector is 0.25.</td></tr>
+    <tr><td><code>ENDPOINTING_MIN_DELAY</code></td><td>0.3</td><td>Extra wait before committing a turn. Lower is faster but cuts off more callers.</td></tr>
+    <tr><td><code>ENDPOINTING_MAX_DELAY</code></td><td>1.2</td><td>Cap when the turn detector thinks the caller is mid-sentence</td></tr>
+    <tr><td><code>PREEMPTIVE_GENERATION</code></td><td>true</td><td>Start the LLM as soon as a final transcript arrives</td></tr>
+    <tr><td><code>LLM_MODEL</code></td><td>agent-fast</td><td>Alias in LiteLLM: <code>agent-fast</code>, <code>agent-lite</code>, <code>agent-smart</code>, <code>agent-claude</code></td></tr>
+  </table></div>
+  <p>Compare settings with real scripted calls: <code>scripts/tune-latency.sh</code>.</p>
+</section>
+
+<section id="languages">
+  <h2>Languages</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Language</th><th>STT</th><th>TTS</th><th>End-of-turn model</th></tr>
+    <tr><td>English (India)</td><td>✓</td><td>✓</td><td>✓ local model</td></tr>
+    <tr><td>Hindi / Hinglish</td><td>✓</td><td>✓</td><td>✓ local model</td></tr>
+    <tr><td>Tamil, Telugu, Kannada, Malayalam</td><td>✓</td><td>✓</td><td>Silence-based (min delay)</td></tr>
+  </table></div>
+  <p>Sarvam detects the language on every utterance (<code>STT_LANGUAGE=unknown</code>). When it changes, the agent switches the TTS voice language and pins the reply language in the LLM instructions. Small models otherwise drift back to the language of earlier messages. All six languages passed a TTS → STT round-trip test word for word.</p>
+</section>
+
+<section id="demo">
+  <h2>Demo page</h2>
+  <p><a href="http://localhost:3000/demo">localhost:3000/demo</a> is a test console for the voice agent.</p>
+  <ul>
+    <li><strong>Workflow picker</strong>: Receptionist, Lead qualification, Sales or Support. The choice is sent with the token request.</li>
+    <li><strong>Status line</strong>: connection, agent state (<em>listening</em>, <em>thinking</em>, <em>speaking</em>) and detected language.</li>
+    <li><strong>Conversation</strong>: your transcribed words and the bot's replies. Interrupted replies are marked, and live captions appear while you speak.</li>
+    <li><strong>Latency table</strong>: end of turn, STT, LLM first token, TTS first audio and voice-to-voice for every turn, plus the median. Values over 800 ms are highlighted.</li>
+  </ul>
+  <div class="callout tip"><strong>Use a real browser.</strong> Microphones work on <code>http://localhost</code> in Chrome and Edge. Embedded or preview browsers often block the mic. For another device on your network you need HTTPS (planned with the production setup).</div>
+</section>
+
+<section id="workflows">
+  <h2>Workflows</h2>
+  <p>In Phase 1 each workflow is one voice assistant with its own role prompt (<code>agent/prompts.py</code>). The bot never quotes prices or policies, because it doesn't have product data yet. In Phase 2 these become real flows with tools and handoffs between them.</p>
+  <div class="table-wrap"><table>
+    <tr><th>Workflow</th><th>Today</th><th>Phase 2+</th></tr>
+    <tr><td><code>router</code> (Receptionist)</td><td>Finds out what the caller wants</td><td>Detects intent and language, then hands off to the right agent</td></tr>
+    <tr><td><code>lead_qualification</code></td><td>Asks about needs, budget, decision maker and timeline</td><td>BANT slot-filling, <code>create_lead</code>, <code>book_meeting</code>, sync to Twenty CRM</td></tr>
+    <tr><td><code>sales</code></td><td>Discusses needs, offers a specialist</td><td>Knowledge-base answers, objection handling, warm transfer</td></tr>
+    <tr><td><code>support</code></td><td>Clarifies the problem, suggests next steps</td><td>FAQ answers, ticket lookup and creation in Chatwoot, escalation</td></tr>
+  </table></div>
+</section>
+
+<section id="services">
+  <h2>Services &amp; URLs</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Service</th><th>URL / port</th><th>Purpose</th></tr>
+    <tr><td><code>web</code></td><td><a href="http://localhost:3000">localhost:3000</a></td><td>Demo page and admin (Next.js)</td></tr>
+    <tr><td><code>api</code></td><td><a href="http://localhost:4000/health">localhost:4000</a></td><td>NestJS: <code>/health</code>, <code>/health/live</code>, <code>POST /v1/livekit/token</code></td></tr>
+    <tr><td><code>livekit</code></td><td><code>ws://localhost:7880</code>, TCP 7881, UDP 50000–50100</td><td>WebRTC media server</td></tr>
+    <tr><td><code>agent</code></td><td>internal (health on :8081)</td><td>Voice agent workers</td></tr>
+    <tr><td><code>litellm</code></td><td><a href="http://localhost:4100">localhost:4100</a></td><td>LLM gateway (OpenAI-compatible). Auth: <code>LITELLM_MASTER_KEY</code>.</td></tr>
+    <tr><td><code>postgres</code></td><td><code>localhost:5433</code></td><td>App DB with pgvector, plus DBs for Twenty, Chatwoot, Langfuse and LiteLLM</td></tr>
+    <tr><td><code>redis</code></td><td>internal</td><td>LiveKit coordination</td></tr>
+    <tr><td><code>rustfs</code></td><td><a href="http://localhost:9001">localhost:9001</a> (console), 9000 (S3)</td><td>S3-compatible storage with the <code>recordings</code> and <code>langfuse</code> buckets</td></tr>
+  </table></div>
+  <p class="muted">Postgres, LiteLLM and RustFS are bound to <code>127.0.0.1</code> only, so they aren't reachable from your network.</p>
+</section>
+
+<section id="commands">
+  <h2>Commands</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Command</th><th>What it does</th></tr>
+    <tr><td><code>./setup.sh</code></td><td>Complete guided setup (re-runnable)</td></tr>
+    <tr><td><code>make up</code></td><td>Create or refresh <code>.env</code>, build, start the core stack</td></tr>
+    <tr><td><code>make ps</code></td><td>Service status and health</td></tr>
+    <tr><td><code>make health</code></td><td>API readiness JSON (db, livekit, litellm)</td></tr>
+    <tr><td><code>make logs s=agent</code></td><td>Follow one service's logs</td></tr>
+    <tr><td><code>make ip</code></td><td>Re-detect your LAN IP and restart LiveKit (after changing networks)</td></tr>
+    <tr><td><code>make down</code></td><td>Stop everything, keeping data</td></tr>
+    <tr><td><code>make clean</code></td><td><strong>Delete</strong> all data volumes</td></tr>
+    <tr><td><code>scripts/tune-latency.sh</code></td><td>Scripted calls under several turn-taking settings</td></tr>
+  </table></div>
+</section>
+
+<section id="config">
+  <h2>Configuration (<code>.env</code>)</h2>
+  <p><code>.env</code> is created from <code>.env.example</code> by <code>make env</code> or <code>./setup.sh</code>. Values shown as <em>generated</em> are filled with random secrets. Re-running never overwrites existing values.</p>
+  <div class="table-wrap"><table>
+    <tr><th>Variable</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>LIVEKIT_API_KEY</code> / <code>_SECRET</code></td><td><em>generated</em></td><td>Shared by LiveKit, the API and the agent</td></tr>
+    <tr><td><code>LIVEKIT_NODE_IP</code></td><td><em>your LAN IP</em></td><td>IP that both browsers and containers can reach. Refresh with <code>make ip</code>.</td></tr>
+    <tr><td><code>LIVEKIT_PUBLIC_URL</code></td><td><code>ws://localhost:7880</code></td><td>LiveKit URL handed to browsers</td></tr>
+    <tr><td><code>POSTGRES_USER</code> / <code>_PASSWORD</code> / <code>_DB</code></td><td>audiobots / <em>generated</em> / audiobots</td><td>Database credentials</td></tr>
+    <tr><td><code>S3_ACCESS_KEY</code> / <code>S3_SECRET_KEY</code></td><td><em>generated</em></td><td>RustFS credentials</td></tr>
+    <tr><td><code>LITELLM_MASTER_KEY</code></td><td><em>generated</em></td><td>Auth for the LiteLLM gateway</td></tr>
+    <tr><td><code>SARVAM_API_KEY</code>, <code>GEMINI_API_KEY</code></td><td>empty</td><td>Required provider keys</td></tr>
+    <tr><td><code>VERTEXAI_PROJECT</code> / <code>_LOCATION</code></td><td>empty / asia-south1</td><td>Optional Vertex AI</td></tr>
+    <tr><td><code>STT_MODEL</code> / <code>STT_MODE</code></td><td>saaras:v4 / transcribe</td><td>Modes: <code>transcribe</code>, <code>codemix</code>, <code>translit</code>, <code>verbatim</code></td></tr>
+    <tr><td><code>STT_FLUSH_SIGNAL</code></td><td>true</td><td>Ask Sarvam to finalize as soon as the turn ends</td></tr>
+    <tr><td><code>TTS_MODEL</code> / <code>TTS_SPEAKER</code></td><td>bulbul:v3 / priya</td><td>Any bulbul speaker, e.g. <code>kavya</code>, <code>rahul</code>, <code>amit</code></td></tr>
+    <tr><td><code>LLM_MODEL</code></td><td>agent-fast</td><td>LiteLLM alias used by the agent</td></tr>
+    <tr><td><code>VAD_MIN_SILENCE</code>, <code>ENDPOINTING_*</code>, <code>PREEMPTIVE_GENERATION</code></td><td>0.25, 0.3 / 1.2, true</td><td>Turn-taking (see <a href="#latency">Latency</a>)</td></tr>
+    <tr><td><code>NUM_IDLE_PROCESSES</code></td><td>2</td><td>Warm agent processes. Raise this on a production host.</td></tr>
+    <tr><td><code>CORS_ORIGINS</code></td><td><code>http://localhost:3000</code></td><td>Origins allowed to call the API (websites embedding the widget)</td></tr>
+  </table></div>
+  <p>After editing, apply with <code>make up</code>. Restarting just the agent is enough for voice settings: <code>docker compose up -d --force-recreate agent</code>.</p>
+</section>
+
+<section id="providers">
+  <h2>Swapping providers</h2>
+  <h3>LLM: edit one file</h3>
+  <p>Aliases live in <code>infra/litellm/config.yaml</code>. To point <code>agent-fast</code> at another model, change its <code>model:</code> line, for example <code>vertex_ai/…</code>, <code>groq/…</code>, or a self-hosted <code>openai/…</code> with an <code>api_base</code>. Then run <code>docker compose restart litellm</code>. Fallbacks are listed under <code>router_settings</code>.</p>
+  <div class="callout warn"><strong>Avoid "thinking" models for voice.</strong> Models that reason before answering add seconds of silence. Disable reasoning (<code>reasoning_effort: disable</code>) or use Flash-Lite-class models.</div>
+  <h3>STT / TTS: add a registry entry</h3>
+  <p>In <code>agent/pipeline.py</code>, add a factory to <code>STT_PROVIDERS</code> or <code>TTS_PROVIDERS</code>, then select it with <code>STT_PROVIDER</code> or <code>TTS_PROVIDER</code>. Install the matching <code>livekit-plugins-*</code> package through <code>agent/requirements-plugins.txt</code>. That layer is cached separately, so only the new package downloads.</p>
+</section>
+
+<section id="testing">
+  <h2>Testing &amp; benchmarks</h2>
+  <p>These scripts run inside the agent image against your real keys. They don't need a microphone.</p>
+  <div class="code"><pre># full scripted call: a fake caller speaks EN → HI → TA, prints replies + per-turn latency
+docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/e2e_call.py sales
+
+# TTS → STT round-trip for all six languages (accuracy + detection)
+docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/sarvam_roundtrip.py
+
+# streaming TTS first-audio latency, STT finalization latency
+docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/tts_latency.py
+docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_latency.py</pre></div>
+  <p class="muted">Each script call uses your Sarvam and Gemini quota (a few cents).</p>
+</section>
+
+<section id="structure">
+  <h2>Project structure</h2>
+  <div class="code"><pre>audiobots/
+├── setup.sh                 one-command setup
+├── docker-compose.yml       all services (core + future profiles)
+├── Makefile                 up / down / logs / health / ip …
+├── .env.example             every setting, documented
+├── PLAN.md                  decisions + phased roadmap
+├── docs/guide.html          this guide
+├── agent/                   Python · LiveKit Agents
+│   ├── main.py              session setup, turn-taking, language switching
+│   ├── pipeline.py          STT / LLM / TTS provider registries
+│   ├── settings.py          env-driven settings
+│   ├── prompts.py           workflow instructions + voice rules
+│   ├── telemetry.py         per-turn latency + live transcript events
+│   ├── languages.py         supported languages
+│   └── scripts/             e2e call + benchmarks
+├── api/                     NestJS (tokens, health; business logic from Phase 2)
+├── web/                     Next.js (/demo, /admin)
+├── infra/
+│   ├── livekit/livekit.yaml
+│   ├── litellm/config.yaml  model aliases, fallbacks
+│   ├── litellm/secrets/     gitignored (Vertex key)
+│   └── postgres/init/       creates DBs + pgvector
+└── scripts/                 init-env.sh, tune-latency.sh</pre></div>
+</section>
+
+<section id="security">
+  <h2>Security &amp; secrets</h2>
+  <ul>
+    <li><code>.env</code> and <code>infra/litellm/secrets/*</code> are gitignored. Never commit keys. <code>setup.sh</code> sets <code>.env</code> to owner-only permissions.</li>
+    <li>Generated secrets are random per install. Rotate them by deleting a line from <code>.env</code> and re-running <code>make env</code>.</li>
+    <li>Browser tokens are short-lived (15 minutes) and scoped to a single new room.</li>
+    <li>Postgres, LiteLLM and RustFS listen on localhost only. LiveKit and the web app are reachable on your LAN.</li>
+    <li>Recording upload to LiveKit Cloud is disabled. Call recording (Phase 6) will play a consent prompt first and store audio in your own RustFS.</li>
+    <li>Production (later): TLS in front of LiveKit and the web app, admin authentication, and DPDP Act retention settings.</li>
+  </ul>
+</section>
+
+<section id="troubleshooting">
+  <h2>Troubleshooting</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Symptom</th><th>Cause and fix</th></tr>
+    <tr><td>Agent image build takes 20–40 min</td><td>Slow ISP route to PyPI (seen at 20–110 KB/s while other sites ran at 13 MB/s). Let it finish once; it's cached afterwards. Try a different network or a VPN if it keeps failing. Pip already retries with long timeouts.</td></tr>
+    <tr><td>Demo says "Waiting for agent…" forever</td><td>Check <code>make logs s=agent</code>. Usually the agent isn't healthy yet, or it crashed while starting the session.</td></tr>
+    <tr><td>"Agent error (config): … API key is required"</td><td>Add the key to <code>.env</code>, then <code>docker compose up -d --force-recreate agent litellm</code>.</td></tr>
+    <tr><td>"Microphone unavailable: Permission denied"</td><td>Allow the mic for localhost in Chrome site settings. Embedded preview browsers can't use the mic.</td></tr>
+    <tr><td>Connected but no audio, or the call drops after changing Wi-Fi</td><td>LiveKit is advertising your old LAN IP. Run <code>make ip</code>.</td></tr>
+    <tr><td>LLM test returns 408 / timeout</td><td>The model is "thinking" (e.g. <code>gemini-flash-latest</code>). Use Flash-Lite or disable reasoning in <code>infra/litellm/config.yaml</code>.</td></tr>
+    <tr><td>LLM returns 429</td><td>Gemini quota or rate limit. Check your AI Studio quota or use Vertex AI.</td></tr>
+    <tr><td>Port already in use</td><td>Another app holds one of the published ports. Stop it, or change the host-side port in <code>docker-compose.yml</code>.</td></tr>
+    <tr><td><code>.env</code> not writable</td><td>It was edited with <code>sudo</code>. Run <code>sudo chown $(whoami) .env</code>.</td></tr>
+    <tr><td>Bot replies in the wrong language</td><td>Check the agent logs for <code>language switch</code> lines. If STT detects correctly but the reply drifts, try <code>LLM_MODEL=agent-smart</code>.</td></tr>
+  </table></div>
+</section>
+
+<section id="roadmap">
+  <h2>Roadmap</h2>
+  <div class="table-wrap"><table>
+    <tr><th>#</th><th>Phase</th><th>Status</th></tr>
+    <tr><td>0</td><td>Docker stack, LiveKit, API, web, agent skeleton</td><td class="status-done">Done</td></tr>
+    <tr><td>1</td><td>Voice loop: Sarvam STT/TTS, Gemini via LiteLLM, turn-taking, latency telemetry</td><td class="status-done">Done</td></tr>
+    <tr><td>1b</td><td>Latency: Vertex AI Mumbai benchmark, then the next LLM option</td><td class="status-next">In progress</td></tr>
+    <tr><td>2</td><td>Workflows with tools and handoffs; calls, turns, leads and tickets in Postgres</td><td>Planned</td></tr>
+    <tr><td>3</td><td>Knowledge base / RAG with selectable embedding providers</td><td>Planned</td></tr>
+    <tr><td>4</td><td>Admin dashboard: agents, prompts, voices, calls, leads, latency charts</td><td>Planned</td></tr>
+    <tr><td>5</td><td>Webhooks, plus Twenty CRM and Chatwoot sync</td><td>Planned</td></tr>
+    <tr><td>6</td><td>Call recording (consent) to RustFS, Langfuse tracing</td><td>Planned</td></tr>
+    <tr><td>7</td><td>SIP: inbound and outbound calls, warm transfer, Indian SIP trunk</td><td>Planned</td></tr>
+    <tr><td>8</td><td>Embeddable website widget</td><td>Planned</td></tr>
+    <tr><td>9</td><td>Self-hosted models on GPU (vLLM, IndicConformer, Indic Parler)</td><td>Planned</td></tr>
+  </table></div>
+  <p class="muted">Full decisions and details: <code>PLAN.md</code>.</p>
+</section>
+
+<footer>AudioBots starter kit · guide reflects the code as of Phase 1 (Nov 2026).</footer>
+</main>
+</div>
+
+<script>
+(function () {
+  // Theme toggle (remembered per browser; storage may be unavailable)
+  var root = document.documentElement;
+  try { var saved = localStorage.getItem('ab-theme'); if (saved) root.setAttribute('data-theme', saved); } catch (e) {}
+  document.getElementById('theme-btn').addEventListener('click', function () {
+    var dark = root.getAttribute('data-theme')
+      ? root.getAttribute('data-theme') === 'dark'
+      : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var next = dark ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('ab-theme', next); } catch (e) {}
+  });
+
+  // Mobile contents drawer
+  var toc = document.getElementById('toc');
+  document.getElementById('menu-btn').addEventListener('click', function () { toc.classList.toggle('open'); });
+  toc.addEventListener('click', function (e) { if (e.target.tagName === 'A') toc.classList.remove('open'); });
+
+  // Copy buttons on code blocks
+  document.querySelectorAll('.code').forEach(function (block) {
+    var btn = document.createElement('button');
+    btn.className = 'btn copy'; btn.type = 'button'; btn.textContent = 'Copy';
+    btn.addEventListener('click', function () {
+      var text = block.querySelector('pre').innerText;
+      var done = function () { btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = 'Copy'; }, 1500); };
+      if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, function () {});
+    });
+    block.appendChild(btn);
+  });
+
+  // Highlight the current section in the contents
+  var links = {};
+  toc.querySelectorAll('a').forEach(function (a) { links[a.getAttribute('href').slice(1)] = a; });
+  if ('IntersectionObserver' in window) {
+    var obs = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting && links[en.target.id]) {
+          Object.values(links).forEach(function (l) { l.classList.remove('active'); });
+          links[en.target.id].classList.add('active');
+        }
+      });
+    }, { rootMargin: '-40% 0px -55% 0px' });
+    document.querySelectorAll('main section[id]').forEach(function (s) { obs.observe(s); });
+  }
+})();
+</script>
+</body>
+</html>

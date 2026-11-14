@@ -1,10 +1,13 @@
 SHELL := /bin/bash
 COMPOSE := docker compose
 
-.PHONY: help env ip up up-all build down logs ps health clean
+.PHONY: help setup env ip up up-all build down logs ps health clean
 
 help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-10s\033[0m %s\n",$$1,$$2}'
+
+setup: ## Guided one-command setup (checks, .env, keys, build, start, verify)
+	@./setup.sh
 
 env: ## Create/refresh .env (secrets + LAN IP)
 	@./scripts/init-env.sh

@@ -2,7 +2,15 @@
 
 Low-latency voice agents (sales, support, lead qualification) for the web and SIP, built on self-hosted LiveKit. See [PLAN.md](PLAN.md) for the architecture and the phases.
 
+**Full setup & user guide:** open [docs/guide.html](docs/guide.html) in a browser (architecture, configuration, latency, troubleshooting).
+
 ## Quick start (local, Docker)
+
+```bash
+./setup.sh     # checks prerequisites, creates .env, asks for keys, builds, starts, verifies
+```
+
+Or step by step:
 
 ```bash
 make up        # creates .env (secrets + LAN IP), builds and starts the core stack
