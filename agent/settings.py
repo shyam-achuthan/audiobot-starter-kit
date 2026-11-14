@@ -69,8 +69,8 @@ class Settings:
             litellm_api_key=_env("LITELLM_API_KEY", "sk-missing"),
             llm_model=_env("LLM_MODEL", "agent-fast"),
             llm_temperature=_float("LLM_TEMPERATURE", 0.4),
-            endpointing_min_delay=_float("ENDPOINTING_MIN_DELAY", 0.4),
-            endpointing_max_delay=_float("ENDPOINTING_MAX_DELAY", 2.5),
+            endpointing_min_delay=_float("ENDPOINTING_MIN_DELAY", 0.3),
+            endpointing_max_delay=_float("ENDPOINTING_MAX_DELAY", 1.2),
             interruption_min_duration=_float("INTERRUPTION_MIN_DURATION", 0.5),
             preemptive_generation=_bool("PREEMPTIVE_GENERATION", True),
         )

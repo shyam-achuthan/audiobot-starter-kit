@@ -26,7 +26,11 @@ from livekit.plugins import silero
 
 import pipeline
 import prompts
-from languages import normalize
+from languages import SUPPORTED, TURN_DETECTOR_LANGS, normalize
+
+NO_TURN_MODEL_LANGS = sorted(
+    {c.split("-")[0] for c in SUPPORTED} - TURN_DETECTOR_LANGS
+)
 from settings import Settings
 from telemetry import CallTelemetry
 
@@ -39,7 +43,8 @@ def prewarm(proc: JobProcess) -> None:
     # triggers the STT flush. The turn detector still decides end-of-turn, so a
     # short value here cuts latency without cutting callers off mid-sentence.
     proc.userdata["vad"] = silero.VAD.load(
-        min_silence_duration=float(os.environ.get("VAD_MIN_SILENCE", "0.3")),
+        # (LiveKit requires >= 0.25 s when the turn detector is enabled.)
+        min_silence_duration=max(0.25, float(os.environ.get("VAD_MIN_SILENCE", "0.25"))),
     )
 
 
@@ -104,7 +109,12 @@ async def entrypoint(ctx: JobContext) -> None:
         turn_handling={
             # Local model only (no LiveKit Cloud). Covers en + hi; other languages
             # end the turn on silence using the endpointing delays below.
-            "turn_detection": inference.TurnDetector(version="v1-mini"),
+            "turn_detection": inference.TurnDetector(
+                version="v1-mini",
+                # The model has no Tamil/Telugu/Kannada/Malayalam data; a 0 threshold means
+                # it never holds those turns open, so they end after min_delay of silence.
+                unlikely_threshold={code: 0.0 for code in NO_TURN_MODEL_LANGS},
+            ),
             "endpointing": {
                 "min_delay": settings.endpointing_min_delay,
                 "max_delay": settings.endpointing_max_delay,
