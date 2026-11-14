@@ -91,8 +91,12 @@ services:
     image: ghcr.io/berriai/litellm:main-stable
     command: ["--config", "/app/config.yaml", "--port", "4000"]
     env_file: .env
+    environment:
+      # Vertex AI service-account key, mounted read-only from infra/litellm/secrets/ (gitignored)
+      GOOGLE_APPLICATION_CREDENTIALS: /secrets/vertex-sa.json
     volumes:
       - ./infra/litellm/config.yaml:/app/config.yaml:ro
+      - ./infra/litellm/secrets:/secrets:ro
     ports:
       - "127.0.0.1:4100:4000"
     healthcheck:
