@@ -66,6 +66,8 @@ export class Call extends Model {
   @Column(DataType.TEXT) declare dialError: string | null;
   /** Outbound callback: the ticket this call is about (not an association, to keep Call.tickets simple). */
   @Column(DataType.UUID) declare ticketId: string | null;
+  /** Website widget the call came from (Phase 8). */
+  @Column(DataType.UUID) declare widgetId: string | null;
   @CreatedAt declare createdAt: Date;
   @UpdatedAt declare updatedAt: Date;
 
@@ -336,7 +338,26 @@ export class DndNumber extends Model {
   @CreatedAt declare createdAt: Date;
 }
 
+export type WidgetAppearance = {
+  title?: string; buttonLabel?: string; color?: string; position?: 'right' | 'left'; captions?: boolean;
+};
+
+@Table({ tableName: 'widgets', underscored: true })
+export class Widget extends Model {
+  @Column({ type: DataType.UUID, primaryKey: true, defaultValue: DataType.UUIDV4 }) declare id: string;
+  @Column({ type: DataType.TEXT, allowNull: false }) declare name: string;
+  @Column({ type: DataType.TEXT, allowNull: false, unique: true }) declare publicKey: string;
+  @Column({ type: DataType.JSONB, allowNull: false, defaultValue: [] }) declare allowedOrigins: string[];
+  @Column({ type: DataType.STRING(32), allowNull: false, defaultValue: 'router' }) declare workflow: string;
+  @Column({ type: DataType.JSONB, allowNull: false, defaultValue: {} }) declare appearance: WidgetAppearance;
+  @Column({ type: DataType.INTEGER, allowNull: false, defaultValue: 5 }) declare maxConcurrent: number;
+  @Column({ type: DataType.INTEGER, allowNull: false, defaultValue: 15 }) declare maxMinutes: number;
+  @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: true }) declare enabled: boolean;
+  @CreatedAt declare createdAt: Date;
+  @UpdatedAt declare updatedAt: Date;
+}
+
 export const MODELS = [
   Call, CallTurn, Lead, Ticket, BusinessProfile, KnowledgeBase, KbDocument, AdminUser, AdminSession, AgentConfig,
-  WebhookEndpoint, OutboxEvent, WebhookDelivery, PhoneNumber, DndNumber,
+  WebhookEndpoint, OutboxEvent, WebhookDelivery, PhoneNumber, DndNumber, Widget,
 ];

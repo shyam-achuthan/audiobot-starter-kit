@@ -32,6 +32,8 @@ import { RecordingsController, RetentionController } from './recordings/recordin
 import { RecordingsService } from './recordings/recordings.service';
 import { OutboundController, PhoneController } from './telephony/telephony.controller';
 import { TelephonyService } from './telephony/telephony.service';
+import { WidgetPublicController, WidgetsController } from './widgets/widgets.controller';
+import { WidgetsService } from './widgets/widgets.service';
 
 @Module({
   imports: [
@@ -51,9 +53,10 @@ import { TelephonyService } from './telephony/telephony.service';
     KnowledgeController, ProfileController, AuthController, AdminUsersController,
     AgentsController, StatsController, IntegrationsController, ChatwootInboundController,
     RecordingsController, RetentionController, PhoneController, OutboundController,
+    WidgetPublicController, WidgetsController,
   ],
   providers: [AuthService, ApiAuthGuard, AgentsService, LivekitService, CallsService, LeadsService, TicketsService, KnowledgeService, EmbeddingsService,
     EventsService, DeliveryWorker, ConnectorRegistry, TwentyConnector, ChatwootConnector, IntegrationsService,
-    RecordingsService, TelephonyService],
+    RecordingsService, TelephonyService, WidgetsService],
 })
 export class AppModule {}

@@ -1,5 +1,5 @@
 import {
-  ArrayMaxSize, IsArray, IsBoolean, IsEmail, IsIn, IsInt, IsOptional, IsString, MaxLength, Min,
+  ArrayMaxSize, IsArray, IsBoolean, IsEmail, IsIn, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min,
 } from 'class-validator';
 import { WORKFLOWS } from '../config';
 import { ListQuery } from '../common/list-query';
@@ -14,6 +14,8 @@ export class CreateCallDto {
   @IsOptional() @IsIn(['inbound', 'outbound']) direction?: 'inbound' | 'outbound';
   @IsOptional() @IsString() @MaxLength(40) remoteNumber?: string;
   @IsOptional() @IsString() @MaxLength(40) localNumber?: string;
+  /** Website widget the call came from. */
+  @IsOptional() @IsUUID() widgetId?: string;
 }
 
 /** Start an outbound call: dial a number directly, or call back a callback ticket. */

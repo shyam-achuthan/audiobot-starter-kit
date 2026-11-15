@@ -12,7 +12,7 @@ export class LivekitService {
   );
 
   /** Issues a short-lived token for a browser/widget visitor to join a fresh room. */
-  async createWebSession(opts: { workflow: Workflow; name?: string }) {
+  async createWebSession(opts: { workflow: Workflow; name?: string; metadata?: Record<string, unknown> }) {
     const room = `web-${randomUUID()}`;
     const identity = `visitor-${randomUUID().slice(0, 8)}`;
 
@@ -21,7 +21,7 @@ export class LivekitService {
       name: opts.name ?? 'Website visitor',
       ttl: '15m',
       // The agent reads this to pick the starting workflow.
-      metadata: JSON.stringify({ workflow: opts.workflow, channel: 'web' }),
+      metadata: JSON.stringify({ ...opts.metadata, workflow: opts.workflow, channel: 'web' }),
     });
     at.addGrant({
       room,

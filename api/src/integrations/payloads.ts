@@ -16,6 +16,7 @@ export function ticketData(ticket: Ticket) {
 export function callData(call: Call, turns?: CallTurn[]) {
   const plain = call.get({ plain: true }) as Record<string, unknown>;
   delete plain.turns; delete plain.leads; delete plain.tickets;
+  delete plain.egressId; delete plain.recordingKey; // internal storage details
   const data: Record<string, unknown> = { ...plain, dashboardUrl: `${config.publicWebUrl}/admin/calls/${call.id}` };
   if (turns) {
     data.durationSec = call.endedAt ? Math.round((+call.endedAt - +call.startedAt) / 1000) : null;

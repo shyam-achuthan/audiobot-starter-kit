@@ -158,6 +158,9 @@ services:
       SIP_OUTBOUND_TRANSPORT: ${SIP_OUTBOUND_TRANSPORT:-udp}
       CALLBACK_MAX_ATTEMPTS: ${CALLBACK_MAX_ATTEMPTS:-3}
       CALLBACK_RETRY_MINUTES: ${CALLBACK_RETRY_MINUTES:-30}
+      # Website widget abuse limits (Phase 8): calls per visitor IP / per widget in 10 minutes
+      WIDGET_IP_LIMIT: ${WIDGET_IP_LIMIT:-6}
+      WIDGET_RATE_LIMIT: ${WIDGET_RATE_LIMIT:-60}
     ports:
       - "4000:4000"
     depends_on:
