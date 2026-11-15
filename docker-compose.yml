@@ -122,6 +122,9 @@ services:
       LITELLM_API_KEY: ${LITELLM_MASTER_KEY}
       CORS_ORIGINS: ${CORS_ORIGINS}
       AGENT_API_TOKEN: ${AGENT_API_TOKEN}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_SESSION_HOURS: ${ADMIN_SESSION_HOURS:-168}
     ports:
       - "4000:4000"
     depends_on:
@@ -164,9 +167,6 @@ services:
     build: ./web
     environment:
       API_INTERNAL_URL: http://api:4000
-      AGENT_API_TOKEN: ${AGENT_API_TOKEN}
-      ADMIN_USER: ${ADMIN_USER:-admin}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     ports:
       - "3000:3000"
     depends_on:

@@ -2,13 +2,13 @@ import {
   Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, UploadedFiles, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { AgentTokenGuard } from '../common/agent-token.guard';
+import { ApiAuthGuard } from '../auth/auth.guard';
 import { MAX_FILE_BYTES, SUPPORTED_FILE_TYPES } from './extract';
 import { AddFaqDto, AddUrlDto, CreateKbDto, SearchDto, UpdateKbDto } from './knowledge.dto';
 import { KnowledgeService } from './knowledge.service';
 
 @Controller('v1/knowledge')
-@UseGuards(AgentTokenGuard)
+@UseGuards(ApiAuthGuard)
 export class KnowledgeController {
   constructor(private readonly kb: KnowledgeService) {}
 

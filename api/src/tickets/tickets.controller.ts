@@ -1,15 +1,16 @@
 import {
   Body, Controller, DefaultValuePipe, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards,
 } from '@nestjs/common';
-import { AgentTokenGuard } from '../common/agent-token.guard';
+import { AgentOnly, ApiAuthGuard } from '../auth/auth.guard';
 import { CreateTicketDto, UpdateTicketDto } from './tickets.dto';
 import { TicketsService } from './tickets.service';
 
 @Controller('v1/tickets')
-@UseGuards(AgentTokenGuard)
+@UseGuards(ApiAuthGuard)
 export class TicketsController {
   constructor(private readonly tickets: TicketsService) {}
 
+  @AgentOnly()
   @Post()
   create(@Body() dto: CreateTicketDto) {
     return this.tickets.create(dto);

@@ -1,15 +1,16 @@
 import {
   Body, Controller, DefaultValuePipe, Get, Param, ParseIntPipe, ParseUUIDPipe, Patch, Post, Query, UseGuards,
 } from '@nestjs/common';
-import { AgentTokenGuard } from '../common/agent-token.guard';
+import { AgentOnly, ApiAuthGuard } from '../auth/auth.guard';
 import { UpsertLeadDto } from './leads.dto';
 import { LeadsService } from './leads.service';
 
 @Controller('v1/leads')
-@UseGuards(AgentTokenGuard)
+@UseGuards(ApiAuthGuard)
 export class LeadsController {
   constructor(private readonly leads: LeadsService) {}
 
+  @AgentOnly()
   @Post()
   create(@Body() dto: UpsertLeadDto) {
     return this.leads.create(dto);

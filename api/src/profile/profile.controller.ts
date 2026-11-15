@@ -1,12 +1,12 @@
 import { Body, Controller, Get, Put, UseGuards } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { AgentTokenGuard } from '../common/agent-token.guard';
+import { ApiAuthGuard } from '../auth/auth.guard';
 import { BusinessProfile } from '../database/models';
 import { UpdateProfileDto } from '../knowledge/knowledge.dto';
 
 /** Business profile edited on the admin Setup page; agents read it at the start of each call. */
 @Controller('v1/profile')
-@UseGuards(AgentTokenGuard)
+@UseGuards(ApiAuthGuard)
 export class ProfileController {
   constructor(@InjectModel(BusinessProfile) private readonly profiles: typeof BusinessProfile) {}
 

@@ -23,6 +23,12 @@ export const config = {
     apiKey: required('LIVEKIT_API_KEY'),
     apiSecret: required('LIVEKIT_API_SECRET'),
   },
+  admin: {
+    // Optional: creates the first owner account on startup when no accounts exist yet.
+    email: process.env.ADMIN_EMAIL ?? '',
+    password: process.env.ADMIN_PASSWORD ?? '',
+    sessionHours: Number(process.env.ADMIN_SESSION_HOURS ?? 168),
+  },
   litellm: {
     url: process.env.LITELLM_URL ?? 'http://litellm:4000',
     apiKey: process.env.LITELLM_API_KEY ?? '',

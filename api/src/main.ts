@@ -1,3 +1,4 @@
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import 'reflect-metadata';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
@@ -7,7 +8,7 @@ import { config } from './config';
 import { runMigrations } from './database/migrator';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const log = new Logger('Bootstrap');
 
   if (config.autoMigrate) {
@@ -19,6 +20,8 @@ async function bootstrap() {
   app.enableCors({
     origin: config.corsOrigins.length ? config.corsOrigins : true,
   });
+  // Real client IP (login throttling) from X-Forwarded-For set by the web app on the Docker network.
+  app.set('trust proxy', 'loopback, uniquelocal');
   app.enableShutdownHooks();
   await app.listen(config.port, '0.0.0.0');
   log.log(`API listening on :${config.port}`);

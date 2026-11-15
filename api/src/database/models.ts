@@ -175,4 +175,49 @@ export class KbDocument extends Model {
 
 // kb_chunks (with the pgvector column) is accessed with raw SQL in KnowledgeService.
 
-export const MODELS = [Call, CallTurn, Lead, Ticket, BusinessProfile, KnowledgeBase, KbDocument];
+export const ADMIN_ROLES = ['owner', 'admin'] as const;
+
+@Table({ tableName: 'admin_users', underscored: true })
+export class AdminUser extends Model {
+  @Column({ type: DataType.UUID, primaryKey: true, defaultValue: DataType.UUIDV4 }) declare id: string;
+  @Column({ type: DataType.TEXT, allowNull: false }) declare email: string;
+  @Column(DataType.TEXT) declare name: string | null;
+  @Column({ type: DataType.TEXT, allowNull: false }) declare passwordHash: string;
+  @Column({ type: DataType.STRING(16), allowNull: false, defaultValue: 'admin' }) declare role: string;
+  @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false }) declare disabled: boolean;
+  @Column(DataType.DATE) declare lastLoginAt: Date | null;
+  @CreatedAt declare createdAt: Date;
+  @UpdatedAt declare updatedAt: Date;
+
+  /** Never serialize the password hash. */
+  toJSON() {
+    const { passwordHash: _omit, ...rest } = this.get({ plain: true }) as Record<string, unknown>;
+    return rest;
+  }
+}
+
+@Table({ tableName: 'admin_sessions', underscored: true, updatedAt: false })
+export class AdminSession extends Model {
+  @Column({ type: DataType.UUID, primaryKey: true, defaultValue: DataType.UUIDV4 }) declare id: string;
+  @ForeignKey(() => AdminUser) @Column({ type: DataType.UUID, allowNull: false }) declare userId: string;
+  @BelongsTo(() => AdminUser) declare user?: AdminUser;
+  @Column({ type: DataType.STRING(64), allowNull: false }) declare tokenHash: string;
+  @Column({ type: DataType.DATE, allowNull: false }) declare expiresAt: Date;
+  @Column(DataType.TEXT) declare userAgent: string | null;
+  @Column({ type: DataType.DATE, allowNull: false, defaultValue: DataType.NOW }) declare lastSeenAt: Date;
+  @CreatedAt declare createdAt: Date;
+}
+
+@Table({ tableName: 'agent_configs', underscored: true })
+export class AgentConfig extends Model {
+  @Column({ type: DataType.STRING(32), primaryKey: true }) declare workflow: string;
+  @Column({ type: DataType.JSONB, allowNull: false, defaultValue: {} }) declare defaults: Record<string, unknown>;
+  @Column({ type: DataType.JSONB, allowNull: false, defaultValue: {} }) declare overrides: Record<string, unknown>;
+  @Column(DataType.TEXT) declare updatedBy: string | null;
+  @CreatedAt declare createdAt: Date;
+  @UpdatedAt declare updatedAt: Date;
+}
+
+export const MODELS = [
+  Call, CallTurn, Lead, Ticket, BusinessProfile, KnowledgeBase, KbDocument, AdminUser, AdminSession, AgentConfig,
+];
