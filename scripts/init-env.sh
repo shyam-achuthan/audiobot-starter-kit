@@ -43,6 +43,9 @@ fill S3_ACCESS_KEY "$(rand 20)"
 fill S3_SECRET_KEY "$(rand 40)"
 fill LITELLM_MASTER_KEY "sk-$(rand 32)"
 fill AGENT_API_TOKEN "$(rand 40)"
+fill CHATWOOT_WEBHOOK_TOKEN "$(rand 32)"
+fill TWENTY_APP_SECRET "$(rand 48)"
+fill CHATWOOT_SECRET_KEY_BASE "$(rand 96)"
 
 # Detect the LAN IP of the default interface (macOS, then Linux).
 IP=""

@@ -125,6 +125,17 @@ services:
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       ADMIN_SESSION_HOURS: ${ADMIN_SESSION_HOURS:-168}
+      PUBLIC_WEB_URL: ${PUBLIC_WEB_URL:-http://localhost:3000}
+      # Integrations (Phase 5). Empty = that connector is off; webhooks work without them.
+      TWENTY_URL: ${TWENTY_URL:-http://twenty-server:3000}
+      TWENTY_PUBLIC_URL: ${TWENTY_PUBLIC_URL:-http://localhost:3020}
+      TWENTY_API_KEY: ${TWENTY_API_KEY:-}
+      CHATWOOT_URL: ${CHATWOOT_URL:-http://chatwoot-web:3000}
+      CHATWOOT_PUBLIC_URL: ${CHATWOOT_PUBLIC_URL:-http://localhost:3030}
+      CHATWOOT_API_TOKEN: ${CHATWOOT_API_TOKEN:-}
+      CHATWOOT_ACCOUNT_ID: ${CHATWOOT_ACCOUNT_ID:-}
+      CHATWOOT_INBOX_ID: ${CHATWOOT_INBOX_ID:-}
+      CHATWOOT_WEBHOOK_TOKEN: ${CHATWOOT_WEBHOOK_TOKEN:-}
     ports:
       - "4000:4000"
     depends_on:
@@ -174,7 +185,120 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # ---------------------------------------------------------------- crm profile (Phase 5)
+  # Local Twenty CRM + Chatwoot helpdesk, so lead and ticket sync can be checked end to end.
+  # Start with `make up-crm`, then `make crm-setup`. Both use their own DBs on the shared postgres.
+  twenty-server:
+    image: twentycrm/twenty:v2.57.1
+    profiles: [crm]
+    environment:
+      NODE_PORT: 3000
+      PG_DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/twenty
+      SERVER_URL: ${TWENTY_PUBLIC_URL:-http://localhost:3020}
+      REDIS_URL: redis://redis:6379/1
+      APP_SECRET: ${TWENTY_APP_SECRET}
+      STORAGE_TYPE: local
+      IS_MULTIWORKSPACE_ENABLED: "false"
+    volumes:
+      - twentydata:/app/packages/twenty-server/.local-storage
+    ports:
+      - "127.0.0.1:3020:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/healthz >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      start_period: 90s
+      retries: 20
+    restart: unless-stopped
+
+  twenty-worker:
+    image: twentycrm/twenty:v2.57.1
+    profiles: [crm]
+    command: ["yarn", "worker:prod"]
+    environment:
+      PG_DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/twenty
+      SERVER_URL: ${TWENTY_PUBLIC_URL:-http://localhost:3020}
+      REDIS_URL: redis://redis:6379/1
+      APP_SECRET: ${TWENTY_APP_SECRET}
+      STORAGE_TYPE: local
+      DISABLE_DB_MIGRATIONS: "true"
+      DISABLE_CRON_JOBS_REGISTRATION: "true"
+    volumes:
+      - twentydata:/app/packages/twenty-server/.local-storage
+    depends_on:
+      twenty-server:
+        condition: service_healthy
+    restart: unless-stopped
+
+  chatwoot-migrate:
+    image: chatwoot/chatwoot:v4.19.1-ce
+    profiles: [crm]
+    command: ["bundle", "exec", "rails", "db:chatwoot_prepare"]
+    environment: &chatwoot-env
+      RAILS_ENV: production
+      NODE_ENV: production
+      INSTALLATION_ENV: docker
+      RAILS_LOG_TO_STDOUT: "true"
+      SECRET_KEY_BASE: ${CHATWOOT_SECRET_KEY_BASE}
+      FRONTEND_URL: ${CHATWOOT_PUBLIC_URL:-http://localhost:3030}
+      POSTGRES_HOST: postgres
+      POSTGRES_USERNAME: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DATABASE: chatwoot
+      REDIS_URL: redis://redis:6379/2
+      ACTIVE_STORAGE_SERVICE: local
+      ENABLE_ACCOUNT_SIGNUP: "false"
+      # Lets this local Chatwoot call the AudioBots API container (http://api:4000) with webhooks.
+      # Chatwoot blocks private-network URLs by default; keep that default on an internet-facing install.
+      SAFE_FETCH_ALLOW_PRIVATE_NETWORK: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: "no"
+
+  chatwoot-web:
+    image: chatwoot/chatwoot:v4.19.1-ce
+    profiles: [crm]
+    entrypoint: ["docker/entrypoints/rails.sh"]
+    command: ["bundle", "exec", "rails", "s", "-p", "3000", "-b", "0.0.0.0"]
+    environment: *chatwoot-env
+    volumes:
+      - chatwootdata:/app/storage
+    ports:
+      - "127.0.0.1:3030:3000"
+    depends_on:
+      chatwoot-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 20
+    restart: unless-stopped
+
+  chatwoot-sidekiq:
+    image: chatwoot/chatwoot:v4.19.1-ce
+    profiles: [crm]
+    command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]
+    environment: *chatwoot-env
+    volumes:
+      - chatwootdata:/app/storage
+    depends_on:
+      chatwoot-migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
 volumes:
   pgdata:
   redisdata:
   s3data:
+  twentydata:
+  chatwootdata:
