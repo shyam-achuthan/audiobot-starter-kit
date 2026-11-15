@@ -165,6 +165,8 @@ services:
     environment:
       API_INTERNAL_URL: http://api:4000
       AGENT_API_TOKEN: ${AGENT_API_TOKEN}
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     ports:
       - "3000:3000"
     depends_on:
