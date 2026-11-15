@@ -191,6 +191,7 @@ cat <<EOF
   Optional CRM + helpdesk (Twenty, Chatwoot):  make up-crm && make crm-setup
   Optional call recording:                     make up-rec
   Optional LLM tracing (Langfuse :3040):       make up-obs
+  Optional phone calls (SIP):                  make up-sip
 
   Useful:  make ps | make logs s=agent | make health | make down
   Network changed (new Wi-Fi)?  make ip

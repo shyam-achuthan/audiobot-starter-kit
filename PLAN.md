@@ -28,7 +28,8 @@ Uses open-source parts wherever it can. Every provider can be swapped by config.
 | Web widget | Small TypeScript bundle (Vite), embedded with one `<script>` tag |
 | Observability | **Langfuse v4** (self-hosted, `observability` profile, set up headless) for LLM traces via LiteLLM's OpenTelemetry callback; each call is one Langfuse session (`x-litellm-session-id` = call id). Plus per-stage latency metrics in Postgres |
 | Recording | LiveKit Egress (`recording` profile) writes one mixed **OGG/Opus** file per call to **RustFS** (S3-compatible, Apache-2.0; MinIO stopped publishing Docker images). **Consent is set per agent**: tell the caller and record unless they object (default), ask first, or off. The agent only mentions recording once the recorder confirms. **Retention** is an org setting (recordings and transcript text, in days; default keep forever) |
-| SIP trunk | **Decide later.** Build SIP generically and test locally with a softphone. Pick Exotel, Plivo or Tata before go-live |
+| SIP trunk | **Decide later.** SIP is built generically (LiveKit SIP bridge, `sip` profile) and tested with a scripted softphone (baresip). Pick Exotel, Plivo or Tata before go-live |
+| Phone (Phase 7) | **Numbers page** in Admin maps each DID to an agent (synced to LiveKit's inbound trunk + dispatch rule). **Outbound** from a ticket's *Call now*, `POST /v1/calls/outbound`, and **scheduled callbacks** (agent stores the callback time; up to 3 tries). **Rules:** calling hours (default 09:00–21:00 IST) and an own do-not-call list; NCPR scrubbing by the trunk. **Transfer** to a per-agent human number via SIP REFER, falling back to a callback ticket |
 
 ### Embeddings: is per-provider choice possible? Yes
 LiteLLM exposes one OpenAI-compatible `/embeddings` endpoint over all of these:
@@ -157,7 +158,7 @@ Target **≤ 800 ms** from the user stopping to the bot's first audio. Stretch g
 | 4 ✅ | **Admin dashboard**: email/password sign-in with owner/admin roles, agents (prompts, models, voices, turn timing), knowledge bases, calls with transcript (audio in phase 6), leads, tickets, latency charts | Agent behaviour can be changed from the UI without a redeploy |
 | 5 ✅ | **Integrations**: outbound webhooks with retries, Twenty and Chatwoot sync (`crm` profile) | A lead shows up in Twenty and a ticket in Chatwoot automatically |
 | 6 ✅ | **Recording and observability**: Egress to RustFS, consent flow, Langfuse traces | Every call has a recording (if consented) and a full LLM trace |
-| 7 | **SIP**: `livekit-sip`, inbound dispatch rules, outbound calls, warm transfer. Tested with a softphone | A call from Linphone/Zoiper goes through the same workflows. The SIP trunk is plugged in once chosen |
+| 7 ✅ | **SIP**: `livekit-sip`, inbound dispatch rules, outbound calls, warm transfer. Tested with a softphone | A call from Linphone/Zoiper goes through the same workflows. The SIP trunk is plugged in once chosen |
 | 8 | **Widget hardening**: embed snippet, theming, mic permission UX, live transcript, reconnect, allowed-origin tokens | Pasting the snippet into any site works securely |
 | 9 | **Self-host readiness**: `local-models` profile (vLLM with Qwen3/Sarvam-M, IndicConformer, Indic Parler/Kokoro), GPU compose override | The hosted to self-hosted swap is done by config alone, benchmarked against hosted |
 

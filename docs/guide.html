@@ -186,6 +186,7 @@ footer { color: var(--faint); font-size: .85rem; border-top: 1px solid var(--bor
     <li><a href="#dashboard">Admin dashboard</a></li>
     <li><a href="#integrations">Integrations</a></li>
     <li><a href="#recording">Recording &amp; tracing</a></li>
+    <li><a href="#phone">Phone calls (SIP)</a></li>
     <li><a href="#demo">Demo page</a></li>
     <li><a href="#workflows">Workflows</a></li>
     <li><a href="#data-api">Data &amp; API</a></li>
@@ -224,9 +225,10 @@ footer { color: var(--faint); font-size: .85rem; border-top: 1px solid var(--bor
     <div class="card"><h3>Knowledge base</h3><p>Agents answer from your documents, FAQs and web pages, in any supported language, and quote prices only from them.</p></div>
     <div class="card"><h3>Visual setup</h3><p>Business profile and knowledge are managed on admin pages, not in config files.</p></div>
     <div class="card"><h3>CRM &amp; webhooks</h3><p>Leads appear in Twenty CRM and tickets in Chatwoot automatically. Any other system can receive signed webhooks, with retries.</p></div>
+    <div class="card"><h3>Phone calls</h3><p>Numbers ring the agent you choose. Agents call customers back at the time they asked for, within calling hours and a do-not-call list, and can hand a caller to a person.</p></div>
     <div class="card"><h3>Recording &amp; tracing</h3><p>Calls are recorded with the caller's consent (set per agent) and play back next to the transcript. Every LLM request is traced in Langfuse.</p></div>
   </div>
-  <div class="callout warn"><strong>Status:</strong> Phases 0–6 are done: the stack, the voice loop, workflows with tools and storage, the knowledge base with visual product setup, the admin dashboard with sign-in and per-agent settings, integrations (webhooks, Twenty CRM, Chatwoot), and call recording with Langfuse tracing. SIP and the website widget come next. See the <a href="#roadmap">roadmap</a>.</div>
+  <div class="callout warn"><strong>Status:</strong> Phases 0–7 are done: the stack, the voice loop, workflows with tools and storage, the knowledge base with visual product setup, the admin dashboard with sign-in and per-agent settings, integrations (webhooks, Twenty CRM, Chatwoot), call recording with Langfuse tracing, and phone calls over SIP (incoming, outgoing, scheduled callbacks, transfers). The website widget comes next. See the <a href="#roadmap">roadmap</a>.</div>
 </section>
 
 <section id="quickstart">
@@ -678,6 +680,41 @@ app.post("/webhooks/audiobots", express.raw({ type: "application/json" }), (req,
   </ul>
 </section>
 
+<section id="phone">
+  <h2>Phone calls (SIP)</h2>
+  <p>The same agents answer and make phone calls through the LiveKit SIP bridge. Everything works with any SIP trunk (Exotel, Plivo, Tata, Airtel…); pick one before going live.</p>
+  <div class="code"><pre>make up-sip      # core stack + SIP bridge (UDP/TCP 5060, RTP UDP 10000–10100)</pre></div>
+  <h3>Incoming calls</h3>
+  <ul>
+    <li>Add your numbers under <strong>Admin → Phone</strong> (owners only) and choose which agent answers each (receptionist, sales, support or lead qualification). AudioBots keeps LiveKit's inbound trunk and dispatch rule in step automatically.</li>
+    <li>Point your trunk at the address shown on that page: <code>sip:&lt;your host&gt;:5060</code>. Set <code>SIP_INBOUND_USERNAME</code> / <code>SIP_INBOUND_PASSWORD</code> if the trunk authenticates; otherwise calls are accepted only from <code>SIP_INBOUND_ALLOWED</code> (local and LAN networks by default).</li>
+    <li>The caller's number comes from the phone network, so agents ask "is this the best number to reach you?" instead of asking them to read it out.</li>
+    <li>To try it on your Mac, point a softphone (Linphone, Zoiper) at <code>sip:+91…@&lt;LIVEKIT_NODE_IP&gt;:5060</code> with one of your numbers.</li>
+  </ul>
+  <h3>Outgoing calls</h3>
+  <p>Set your trunk in <code>.env</code> (<code>SIP_OUTBOUND_ADDRESS</code>, <code>SIP_OUTBOUND_NUMBER</code> as caller ID, and the trunk login). Then calls can start three ways:</p>
+  <div class="table-wrap"><table>
+    <tr><th>Trigger</th><th>How</th></tr>
+    <tr><td><strong>Call now</strong></td><td>On any ticket with a phone number. The agent knows why it's calling (the ticket's subject, details and preferred time) and opens with that.</td></tr>
+    <tr><td><strong>Scheduled callbacks</strong></td><td>When a caller asks to be called back at a time ("tomorrow after 4"), the agent stores the exact time on the callback ticket. At that time the agent calls them, up to 3 tries 30 minutes apart (<code>CALLBACK_MAX_ATTEMPTS</code>, <code>CALLBACK_RETRY_MINUTES</code>). A callback that connects moves the ticket to <em>In progress</em>. The time can be changed or cleared on the ticket page; switch it off under Admin → Phone.</td></tr>
+    <tr><td><strong>API</strong></td><td><code>POST /v1/calls/outbound</code> with <code>{"phone", "workflow", "context"}</code> or <code>{"ticketRef"}</code>, using the server token or an admin session. Returns the call id right away; the phone rings in the background.</td></tr>
+  </table></div>
+  <ul>
+    <li>The agent waits until the person picks up, then introduces itself as an AI assistant and says why it's calling. Unanswered, busy or failed calls show as such on the Calls page.</li>
+    <li><strong>Rules (India):</strong> outgoing calls only within the allowed hours (default 9 AM–9 PM IST, set under Admin → Phone), never to numbers on the <strong>do-not-call list</strong> there (paste numbers or a CSV column), and never twice at once to the same number. National NCPR scrubbing and 140/160-series numbering are handled by your trunk provider.</li>
+  </ul>
+  <h3>Transfer to a person</h3>
+  <ul>
+    <li>Give an agent a <em>Transfer to a person</em> number under Admin → Agents. When a phone caller asks for a human, the agent tells them it's connecting them and hands the call over (SIP REFER through your trunk). The call shows as <em>Transferred to a person</em>.</li>
+    <li>If there is no number, the trunk refuses the transfer, or it's a web call, the agent books a high-priority callback instead.</li>
+  </ul>
+  <h3>Testing without a trunk</h3>
+  <p>A scripted test phone (<code>infra/testphone</code>, baresip from Debian) plays a recorded caller and auto-answers outbound calls:</p>
+  <div class="code"><pre>make sip-test n=+918045670001                  # dial a number you added in Admin → Phone
+SIP_OUTBOUND_ADDRESS=testphone:5070             # in .env, test only; then:
+make sip-test n=+919845012345 kind=outbound     # the agent calls the test phone</pre></div>
+</section>
+
 <section id="demo">
   <h2>Demo page</h2>
   <p><a href="http://localhost:3000/demo">localhost:3000/demo</a> is a test console for the voice agent.</p>
@@ -739,6 +776,8 @@ app.post("/webhooks/audiobots", express.raw({ type: "application/json" }), (req,
     <tr><td><code>GET /v1/calls</code>, <code>GET /v1/calls/:id</code></td><td>List calls, or one call with its turns, leads, tickets, <code>recording</code> summary and Langfuse <code>traceUrl</code></td></tr>
     <tr><td><code>POST /v1/calls/:id/recording</code></td><td>Agent only: <code>{"action":"start"|"stop"|"discard","consent":"notice"|"ask"}</code>. <code>discard</code> stops recording and deletes the file</td></tr>
     <tr><td><code>GET /v1/calls/:id/recording/audio</code></td><td>Streams the recording (OGG/Opus, Range requests supported). <code>DELETE /v1/calls/:id/recording</code> deletes it (owners)</td></tr>
+    <tr><td><code>POST /v1/calls/outbound</code></td><td>Start an outbound call: <code>{"phone","workflow","context"}</code> or <code>{"ticketRef"}</code>. 409 with a <code>reason</code> (<code>outside_hours</code>, <code>dnd</code>, <code>in_progress</code>, <code>not_configured</code>) when it isn't allowed. <code>GET /v1/calls/outbound/check</code> asks without calling</td></tr>
+    <tr><td><code>/v1/phone</code>, <code>/v1/phone/numbers</code>, <code>/v1/phone/rules</code>, <code>/v1/phone/dnd</code></td><td>Admin → Phone: status, numbers and their agents, calling hours and automatic callbacks, the do-not-call list (changes need an owner). <code>GET /v1/phone/lookup?number=</code> is used by the agent</td></tr>
     <tr><td><code>GET|PUT /v1/settings/retention</code></td><td><code>{"recordingRetentionDays", "transcriptRetentionDays"}</code>, days or <code>null</code> for forever. Changing it needs an owner</td></tr>
     <tr><td><code>POST /v1/leads</code>, <code>PATCH /v1/leads/:id</code>, <code>GET /v1/leads[/:id]</code></td><td>Create or partially update leads (empty fields never overwrite saved ones)</td></tr>
     <tr><td><code>POST /v1/tickets</code>, <code>PATCH /v1/tickets/:ref</code>, <code>GET /v1/tickets[/:ref]</code></td><td>Tickets. <code>:ref</code> accepts <code>TKT-1004</code>, <code>1004</code> or a UUID</td></tr>
@@ -779,6 +818,7 @@ curl -s localhost:4000/v1/tickets/1004  -H "Authorization: Bearer $T"</pre></div
     <tr><td><code>redis</code></td><td>internal</td><td>LiveKit coordination</td></tr>
     <tr><td><code>twenty-server</code>, <code>twenty-worker</code></td><td><a href="http://localhost:3020">localhost:3020</a> (<code>crm</code> profile)</td><td>Twenty CRM, for lead sync</td></tr>
     <tr><td><code>chatwoot-web</code>, <code>chatwoot-sidekiq</code></td><td><a href="http://localhost:3030">localhost:3030</a> (<code>crm</code> profile)</td><td>Chatwoot helpdesk, for ticket sync. <code>chatwoot-migrate</code> prepares its database and exits</td></tr>
+    <tr><td><code>sip</code></td><td>UDP/TCP 5060, RTP UDP 10000–10100 (<code>sip</code> profile)</td><td>LiveKit SIP bridge: phone calls in and out</td></tr>
     <tr><td><code>egress</code></td><td>internal (<code>recording</code> profile)</td><td>LiveKit Egress: records consented calls into RustFS</td></tr>
     <tr><td><code>langfuse-web</code>, <code>langfuse-worker</code>, <code>clickhouse</code></td><td><a href="http://localhost:3040">localhost:3040</a> (<code>observability</code> profile)</td><td>Langfuse LLM tracing; ClickHouse stores the traces</td></tr>
     <tr><td><code>rustfs</code></td><td><a href="http://localhost:9001">localhost:9001</a> (console), 9000 (S3)</td><td>S3-compatible storage with the <code>recordings</code> and <code>langfuse</code> buckets</td></tr>
@@ -796,6 +836,8 @@ curl -s localhost:4000/v1/tickets/1004  -H "Authorization: Bearer $T"</pre></div
     <tr><td><code>make crm-setup</code></td><td>Connect Chatwoot (automatic) and Twenty (asks for its API key)</td></tr>
     <tr><td><code>make up-rec</code></td><td>Core stack plus the call recorder (LiveKit Egress)</td></tr>
     <tr><td><code>make up-obs</code></td><td>Core stack plus Langfuse LLM tracing (localhost:3040)</td></tr>
+    <tr><td><code>make up-sip</code></td><td>Core stack plus the SIP bridge for phone calls</td></tr>
+    <tr><td><code>make sip-test n=…</code></td><td>Phone smoke test with the scripted test phone (<code>kind=outbound</code> for an outgoing call)</td></tr>
     <tr><td><code>make ps</code></td><td>Service status and health</td></tr>
     <tr><td><code>make health</code></td><td>API readiness JSON (db, livekit, litellm)</td></tr>
     <tr><td><code>make logs s=agent</code></td><td>Follow one service's logs</td></tr>
@@ -836,6 +878,11 @@ curl -s localhost:4000/v1/tickets/1004  -H "Authorization: Bearer $T"</pre></div
     <tr><td><code>CHATWOOT_WEBHOOK_TOKEN</code></td><td><em>generated</em></td><td>Secret in the URL Chatwoot calls back with status changes</td></tr>
     <tr><td><code>TWENTY_APP_SECRET</code>, <code>CHATWOOT_SECRET_KEY_BASE</code></td><td><em>generated</em></td><td>Secrets of the bundled apps</td></tr>
     <tr><td><code>PUBLIC_WEB_URL</code></td><td><code>http://localhost:3000</code></td><td>Dashboard address used in links inside CRM notes and webhook payloads</td></tr>
+    <tr><td><code>SIP_INBOUND_USERNAME</code> / <code>SIP_INBOUND_PASSWORD</code></td><td><em>empty</em></td><td>Login your trunk uses for incoming calls. Empty: calls are accepted from <code>SIP_INBOUND_ALLOWED</code> networks only</td></tr>
+    <tr><td><code>SIP_INBOUND_ALLOWED</code></td><td>private networks</td><td>CIDRs allowed to send calls when no login is set</td></tr>
+    <tr><td><code>SIP_OUTBOUND_ADDRESS</code>, <code>SIP_OUTBOUND_NUMBER</code>, <code>SIP_OUTBOUND_USERNAME</code>, <code>SIP_OUTBOUND_PASSWORD</code>, <code>SIP_OUTBOUND_TRANSPORT</code></td><td><em>empty</em>, udp</td><td>Your trunk for outgoing calls and the caller ID. Empty address = outbound off</td></tr>
+    <tr><td><code>SIP_PUBLIC_HOST</code></td><td><code>LIVEKIT_NODE_IP</code></td><td>Address shown on Admin → Phone for trunks and softphones</td></tr>
+    <tr><td><code>TRANSFER_NUMBER</code></td><td><em>empty</em></td><td>Default "transfer to a person" number for agents without their own</td></tr>
     <tr><td><code>RECORDING</code></td><td>true</td><td><code>false</code> turns call recording off everywhere</td></tr>
     <tr><td><code>RECORDING_CONSENT</code></td><td>notice</td><td>Built-in consent mode for agents without an override: <code>notice</code>, <code>ask</code> or <code>off</code></td></tr>
     <tr><td><code>LANGFUSE_PUBLIC_URL</code></td><td><code>http://localhost:3040</code></td><td>Langfuse address used for the "Open LLM trace" link. Leave empty to hide the link</td></tr>
@@ -931,6 +978,7 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
     <li>The dashboard needs an email + password sign-in. The session token sits in an httpOnly, SameSite=Lax cookie (Secure over HTTPS), and only its SHA-256 is stored. The browser never sees <code>AGENT_API_TOKEN</code>. The public <code>/backend</code> proxy only serves the call token and auth status.</li>
     <li>Integrations are owner-only. Webhook secrets are shown only on request, every request is signed, and the Chatwoot callback needs a secret token. Twenty and Chatwoot keys live in <code>.env</code>, never in the database.</li>
     <li>The bundled Chatwoot runs with <code>SAFE_FETCH_ALLOW_PRIVATE_NETWORK=true</code> so it can call the API container. Leave that off on an internet-facing Chatwoot. Webhook URLs can point at internal hosts too, which is why only owners can add them.</li>
+    <li>Without a trunk login, incoming SIP calls are only accepted from <code>SIP_INBOUND_ALLOWED</code>. Set a username and password before exposing port 5060 to the internet.</li>
     <li>Recordings are only served by the API to a signed-in admin (through the dashboard's server-side proxy); the RustFS bucket is never public. Only owners can delete recordings or change retention.</li>
     <li>Langfuse stores full prompts and replies, which include what callers said. Its login is created from <code>.env</code> and sign-up is off; it listens on 127.0.0.1 only.</li>
     <li>Production (later): TLS in front of LiveKit and the web app.</li>
@@ -941,6 +989,8 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
   <h2>Troubleshooting</h2>
   <div class="table-wrap"><table>
     <tr><th>Symptom</th><th>Cause and fix</th></tr>
+    <tr><td>Phone calls don't reach the agent</td><td>Run <code>make up-sip</code> and check Admin → Phone: the bridge must show <em>Running</em> and the dialled number must be listed and on. The trunk must send to <code>SIP_PUBLIC_HOST</code>:5060 from an allowed network (or with the login). <code>make logs s=sip</code> shows every INVITE.</td></tr>
+    <tr><td>"Call now" is greyed out</td><td>The page says why: outside calling hours, number on the do-not-call list, a call already in progress, or no outbound trunk (<code>SIP_OUTBOUND_ADDRESS</code>).</td></tr>
     <tr><td>Call page says <em>Recording was not available (Recorder not running)</em></td><td>The <code>recording</code> profile isn't up. Run <code>make up-rec</code>; the next call is recorded. Check <code>make logs s=egress</code> if it still fails.</td></tr>
     <tr><td>Calls drop or the agent mishears parts of what callers say, with <code>Cannot write to closing transport</code> in the agent log</td><td>The speech-to-text connection to Sarvam is being reconnected. Keep <code>STT_LIVENESS_TIMEOUT</code> at 30 or more (LiveKit's 6 s default closes healthy connections when Sarvam answers pings late). After changing agent code or settings, rebuild the agent image: <code>docker compose up -d --build agent</code>.</td></tr>
     <tr><td>No traces in Langfuse</td><td>Start it with <code>make up-obs</code>. Traces arrive a few seconds after each LLM call. LiteLLM logs <code>langfuse_otel</code> errors if it can't reach Langfuse.</td></tr>
@@ -980,14 +1030,14 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
     <tr><td>4</td><td>Admin dashboard: sign-in and users, per-agent prompts, models, voices and timing, calls, leads, tickets, latency charts</td><td class="status-done">Done</td></tr>
     <tr><td>5</td><td>Signed webhooks with retries, Twenty CRM and Chatwoot sync (two-way ticket status)</td><td class="status-done">Done</td></tr>
     <tr><td>6</td><td>Call recording with per-agent consent to RustFS, retention settings, Langfuse tracing</td><td class="status-done">Done</td></tr>
-    <tr><td>7</td><td>SIP: inbound and outbound calls, warm transfer, Indian SIP trunk</td><td>Planned</td></tr>
+    <tr><td>7</td><td>SIP: numbers per agent, outbound calls and scheduled callbacks with calling hours and do-not-call list, transfer to a person</td><td class="status-done">Done</td></tr>
     <tr><td>8</td><td>Embeddable website widget</td><td>Planned</td></tr>
     <tr><td>9</td><td>Self-hosted models on GPU (vLLM, IndicConformer, Indic Parler)</td><td>Planned</td></tr>
   </table></div>
   <p class="muted">Full decisions and details: <code>PLAN.md</code>.</p>
 </section>
 
-<footer>AudioBots starter kit · guide reflects the code as of Phase 6 (Nov 2026).</footer>
+<footer>AudioBots starter kit · guide reflects the code as of Phase 7 (Nov 2026).</footer>
 </main>
 </div>
 
