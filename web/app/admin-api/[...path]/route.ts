@@ -14,6 +14,8 @@ async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }
   };
   const type = req.headers.get('content-type');
   if (type) headers['content-type'] = type; // keeps the multipart boundary for uploads
+  const range = req.headers.get('range');
+  if (range) headers.range = range; // lets the recording player seek
 
   const res = await fetch(url, {
     method: req.method,
@@ -23,10 +25,14 @@ async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }
     ...(hasBody ? { duplex: 'half' } : {}),
     cache: 'no-store',
   } as RequestInit);
-  return new Response(res.body, {
-    status: res.status,
-    headers: { 'content-type': res.headers.get('content-type') ?? 'application/json' },
-  });
+  const out = new Headers({ 'content-type': res.headers.get('content-type') ?? 'application/json' });
+  // fetch() decompresses bodies, so a length is only valid for uncompressed responses.
+  const lengthOk = !res.headers.get('content-encoding');
+  for (const h of ['content-length', 'content-range', 'accept-ranges', 'cache-control']) {
+    const v = res.headers.get(h);
+    if (v && (h !== 'content-length' || lengthOk)) out.set(h, v);
+  }
+  return new Response(res.body, { status: res.status, headers: out });
 }
 
 export const GET = proxy;

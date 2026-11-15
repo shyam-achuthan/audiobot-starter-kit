@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { use, useEffect, useState } from 'react';
 import {
-  AGENT_LABELS, Badge, Card, LANGUAGE_LABELS, Notice, OUTCOME_LABELS, PRIORITY_TONES, TICKET_STATUS_LABELS,
+  AGENT_LABELS, Badge, Button, Card, LANGUAGE_LABELS, Notice, OUTCOME_LABELS, PRIORITY_TONES, TICKET_STATUS_LABELS,
   adminApi, fmtDate, fmtDuration, fmtMs, outcomeTone,
 } from '../../_ui';
 
@@ -19,6 +19,29 @@ type CallDetail = {
   turns: Turn[];
   leads: { id: string; name: string | null; score: number | null; status: string }[];
   tickets: { id: string; ref: string; subject: string; type: string; priority: string; status: string }[];
+  recording: Recording;
+  traceUrl: string | null;
+  transcriptPurgedAt: string | null;
+};
+type Recording = {
+  status: 'none' | 'recording' | 'processing' | 'ready' | 'declined' | 'failed' | 'unavailable' | 'deleted' | 'expired';
+  consent: 'off' | 'notice' | 'ask' | null;
+  durationMs: number | null; bytes: number | null; error: string | null; audioPath: string | null;
+};
+
+const RECORDING_TEXT: Record<Recording['status'], string> = {
+  none: 'This call was not recorded.',
+  recording: 'Recording in progress.',
+  processing: 'Recording finished; the file is being saved.',
+  ready: '',
+  declined: 'The caller declined recording, so nothing was kept.',
+  failed: 'Recording failed.',
+  unavailable: 'Recording was not available for this call.',
+  deleted: 'The recording was deleted by an owner.',
+  expired: 'The recording was removed by the retention policy (Admin → Setup).',
+};
+const CONSENT_TEXT: Record<string, string> = {
+  off: 'Recording off for this agent', notice: 'Caller was told and could opt out', ask: 'Caller agreed when asked',
 };
 
 const SLOW_MS = 3000;
@@ -32,18 +55,75 @@ function Info({ label, children }: { label: string; children: React.ReactNode })
   );
 }
 
+function fmtSize(bytes: number | null) {
+  if (bytes == null) return '';
+  return bytes > 1e6 ? `${(bytes / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1e3))} KB`;
+}
+
+function RecordingCard({ call, owner, onChange }: { call: CallDetail; owner: boolean; onChange: () => void }) {
+  const r = call.recording;
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const remove = async () => {
+    if (!confirm('Delete this recording permanently? This cannot be undone.')) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await adminApi(`/v1/calls/${call.id}/recording`, { method: 'DELETE' });
+      onChange();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Card
+      title="Recording"
+      actions={r.status === 'ready' && owner
+        ? <Button variant="danger" onClick={remove} disabled={busy}>{busy ? 'Deleting…' : 'Delete recording'}</Button>
+        : undefined}
+    >
+      {r.status === 'ready' && r.audioPath ? (
+        <div className="space-y-2">
+          {/* Streams through the signed-in admin proxy; supports seeking. */}
+          <audio controls preload="metadata" className="w-full" src={`/admin-api${r.audioPath}`} />
+          <p className="text-xs text-zinc-500">
+            {[r.durationMs != null ? fmtDuration(new Date(0).toISOString(), new Date(r.durationMs).toISOString()) : null,
+              fmtSize(r.bytes), 'OGG/Opus', r.consent ? CONSENT_TEXT[r.consent] : null].filter(Boolean).join(' · ')}
+          </p>
+        </div>
+      ) : (
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          {RECORDING_TEXT[r.status]}
+          {r.error && <span className="ml-1 text-zinc-500">({r.error})</span>}
+        </p>
+      )}
+      {error && <div className="mt-3"><Notice tone="error">{error}</Notice></div>}
+    </Card>
+  );
+}
+
 export default function CallDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [call, setCall] = useState<CallDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [owner, setOwner] = useState(false);
+  const load = () => adminApi<CallDetail>(`/v1/calls/${id}`).then(setCall).catch((e) => setError(e.message));
 
   useEffect(() => {
-    const load = () => adminApi<CallDetail>(`/v1/calls/${id}`).then(setCall).catch((e) => setError(e.message));
+    adminApi<{ role: string }>('/v1/auth/me').then((me) => setOwner(me.role === 'owner')).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
     void load();
-    // Live calls: refresh the transcript every few seconds.
-    const t = setInterval(() => { if (call?.status === 'active') void load(); }, 4000);
+    // Live calls (and recordings still being saved): refresh every few seconds.
+    const t = setInterval(() => {
+      if (call?.status === 'active' || ['recording', 'processing'].includes(call?.recording.status ?? '')) void load();
+    }, 4000);
     return () => clearInterval(t);
-  }, [id, call?.status]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, call?.status, call?.recording.status]);
 
   if (error) return <Notice tone="error">{error}</Notice>;
   if (!call) return null;
@@ -69,6 +149,13 @@ export default function CallDetailPage({ params }: { params: Promise<{ id: strin
           <Info label="Agents">{call.agentPath.map((a) => AGENT_LABELS[a] ?? a).join(' → ')}</Info>
           <Info label="Median reply"><span className="tabular-nums">{fmtMs(call.medianE2eMs)}</span></Info>
         </dl>
+        {call.traceUrl && (
+          <p className="mt-4 text-sm">
+            <a href={call.traceUrl} target="_blank" rel="noreferrer" className="text-zinc-600 underline-offset-2 hover:underline dark:text-zinc-400">
+              Open LLM trace in Langfuse ↗
+            </a>
+          </p>
+        )}
         {(call.leads.length > 0 || call.tickets.length > 0) && (
           <div className="mt-4 flex flex-wrap gap-2 border-t border-zinc-100 pt-4 text-sm dark:border-zinc-800">
             {call.leads.map((l) => (
@@ -86,7 +173,12 @@ export default function CallDetailPage({ params }: { params: Promise<{ id: strin
         )}
       </Card>
 
+      <RecordingCard call={call} owner={owner} onChange={load} />
+
       <Card title="Transcript">
+        {call.transcriptPurgedAt && (
+          <p className="mb-3 text-sm text-zinc-500">Transcript text was removed by the retention policy on {fmtDate(call.transcriptPurgedAt)}.</p>
+        )}
         {call.turns.length === 0 && <p className="text-sm text-zinc-500">No turns recorded.</p>}
         <ol className="space-y-4">
           {call.turns.map((t) => (
@@ -135,7 +227,7 @@ export default function CallDetailPage({ params }: { params: Promise<{ id: strin
             </tbody>
           </table>
         </div>
-        <p className="mt-3 text-xs text-zinc-500">Replies slower than 3 s are highlighted. Call recordings arrive in Phase 6.</p>
+        <p className="mt-3 text-xs text-zinc-500">Replies slower than 3 s are highlighted.</p>
       </Card>
     </div>
   );

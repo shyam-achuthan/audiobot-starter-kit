@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Badge, Button, Card, Field, Input, Notice, Textarea, adminApi, jsonInit } from '../_ui';
+import { RetentionCard } from './_retention';
 
 type Profile = {
   companyName: string;
@@ -146,6 +147,8 @@ export default function SetupPage() {
           </Button>
         </div>
       </Card>
+
+      <RetentionCard />
     </div>
   );
 }

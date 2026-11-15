@@ -9,6 +9,7 @@ type Draft = { [K in keyof AgentFields]: AgentFields[K] | undefined };
 const KEYS: (keyof AgentFields)[] = [
   'role', 'greeting', 'llmModel', 'ttsSpeaker', 'ttsPace',
   'endpointingMinDelay', 'endpointingMaxDelay', 'allowInterruptions', 'interruptionMinDuration',
+  'recordingConsent',
 ];
 
 /** "Default" marker + reset link shown next to each field label. */
@@ -156,6 +157,17 @@ export default function AgentEditPage({ params }: { params: Promise<{ workflow: 
           </div>
         </Card>
       </div>
+
+      <Card title="Call recording">
+        <Field label={<>Recording consent{state('recordingConsent')}</>}
+          hint="Applies to calls this agent answers. Recordings need the recording profile (make up-rec); retention is set on the Setup page.">
+          <Select value={draft.recordingConsent ?? 'notice'} onChange={(e) => set('recordingConsent', e.target.value as AgentFields['recordingConsent'])}>
+            <option value="notice">Tell the caller, record unless they object</option>
+            <option value="ask">Ask first, record only after a yes</option>
+            <option value="off">Don't record</option>
+          </Select>
+        </Field>
+      </Card>
 
       <Card title="Turn timing (advanced)">
         <div className="grid gap-6 lg:grid-cols-2">

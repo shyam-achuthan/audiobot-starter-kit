@@ -53,7 +53,7 @@ export function Button({ variant = 'primary', className = '', ...props }: Button
   );
 }
 
-export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+export function Field({ label, hint, children }: { label: ReactNode; hint?: string; children: ReactNode }) {
   return (
     <label className="block space-y-1.5">
       <span className="text-sm font-medium">{label}</span>

@@ -8,6 +8,7 @@ export type AgentFields = {
   endpointingMaxDelay: number;
   allowInterruptions: boolean;
   interruptionMinDuration: number;
+  recordingConsent: 'off' | 'notice' | 'ask';
 };
 
 export type AgentView = {
