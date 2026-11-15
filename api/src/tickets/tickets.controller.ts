@@ -2,13 +2,14 @@ import {
   Body, Controller, Get, Param, Patch, Post, Query, UseGuards,
 } from '@nestjs/common';
 import { AgentOnly, ApiAuthGuard } from '../auth/auth.guard';
+import { ConnectorRegistry } from '../integrations/connector-registry';
 import { CreateTicketDto, UpdateTicketDto, ListTicketsQuery } from './tickets.dto';
 import { TicketsService } from './tickets.service';
 
 @Controller('v1/tickets')
 @UseGuards(ApiAuthGuard)
 export class TicketsController {
-  constructor(private readonly tickets: TicketsService) {}
+  constructor(private readonly tickets: TicketsService, private readonly connectors: ConnectorRegistry) {}
 
   @AgentOnly()
   @Post()
@@ -28,12 +29,12 @@ export class TicketsController {
   }
 
   @Get(':ref')
-  get(@Param('ref') ref: string) {
-    return this.tickets.find(ref);
+  async get(@Param('ref') ref: string) {
+    return this.connectors.withLinks(await this.tickets.find(ref));
   }
 
   @Patch(':ref')
-  update(@Param('ref') ref: string, @Body() dto: UpdateTicketDto) {
-    return this.tickets.update(ref, dto);
+  async update(@Param('ref') ref: string, @Body() dto: UpdateTicketDto) {
+    return this.connectors.withLinks(await this.tickets.update(ref, dto));
   }
 }
