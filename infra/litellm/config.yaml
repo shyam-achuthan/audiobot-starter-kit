@@ -2,14 +2,16 @@
 # so providers can be swapped here without code changes.
 model_list:
   # ---- Conversation models ----
-  # Benchmarked 2026-11-14 from India (streaming time-to-first-token):
-  #   gemini-flash-lite-latest ~0.95s  <- default for voice
-  #   gemini-3.5-flash (thinking off) ~1.8s
-  #   gemini-3.8-flash / flash-latest: thinking can't go below "low", >30s — unusable for voice
+  # Benchmarked 2026-11-15 from India, WITH tools attached (time to a tool call):
+  #   gemini-3.5-flash (thinking off)          ~0.7s   <- default for voice
+  #   gemini-3.5-flash-lite (thinking off)     ~3s
+  #   gemini-flash-lite-latest                 4.5-8.5s (now thinks before tool calls)
+  #   gemini-3.8-flash / flash-latest: thinking can't go below "low", >30s
   - model_name: agent-fast
     litellm_params:
-      model: gemini/gemini-flash-lite-latest
+      model: gemini/gemini-3.5-flash
       api_key: os.environ/GEMINI_API_KEY
+      reasoning_effort: disable
   - model_name: agent-lite
     litellm_params:
       model: gemini/gemini-flash-lite-latest
