@@ -16,7 +16,7 @@ const TABS = [
 export function AdminNav({ owner }: { owner: boolean }) {
   const path = usePathname();
   const tabs = owner
-    ? [...TABS, { href: '/admin/phone', label: 'Phone' }, { href: '/admin/integrations', label: 'Integrations' }, { href: '/admin/users', label: 'Users' }]
+    ? [...TABS, { href: '/admin/phone', label: 'Phone' }, { href: '/admin/widgets', label: 'Widgets' }, { href: '/admin/integrations', label: 'Integrations' }, { href: '/admin/users', label: 'Users' }]
     : TABS;
   const active = (href: string) => (href === '/admin' ? path === '/admin' : path.startsWith(href));
   return (
