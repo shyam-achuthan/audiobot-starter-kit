@@ -4,8 +4,14 @@ import type { NextRequest } from 'next/server';
 
 const API = process.env.API_INTERNAL_URL ?? 'http://localhost:4000';
 
+// Public endpoints only: everything else needs an admin session (/admin-api) or the agent token.
+const PUBLIC = new Set(['v1/livekit/token', 'v1/auth/status', 'health']);
+
 async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   const { path } = await ctx.params;
+  if (!PUBLIC.has(path.join('/'))) {
+    return Response.json({ message: 'not found' }, { status: 404 });
+  }
   const url = `${API}/${path.join('/')}${req.nextUrl.search}`;
   const hasBody = !['GET', 'HEAD'].includes(req.method);
   const res = await fetch(url, {
