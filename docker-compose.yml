@@ -1,7 +1,7 @@
 name: audiobots
 
 # Core services have no profile and always start.
-# Optional profiles: recording, observability, crm, sip (built); local-models (later phase).
+# Optional profiles: recording, observability, crm, sip. Models are cloud-hosted only (no GPU).
 
 x-livekit-env: &livekit-env
   LIVEKIT_URL: ws://livekit:7880

@@ -230,7 +230,7 @@ footer { color: var(--faint); font-size: .85rem; border-top: 1px solid var(--bor
     <div class="card"><h3>Phone calls</h3><p>Numbers ring the agent you choose. Agents call customers back at the time they asked for, within calling hours and a do-not-call list, and can hand a caller to a person.</p></div>
     <div class="card"><h3>Recording &amp; tracing</h3><p>Calls are recorded with the caller's consent (set per agent) and play back next to the transcript. Every LLM request is traced in Langfuse.</p></div>
   </div>
-  <div class="callout warn"><strong>Status:</strong> Phases 0–8 are done: the stack, the voice loop, workflows with tools and storage, the knowledge base with visual product setup, the admin dashboard with sign-in and per-agent settings, integrations (webhooks, Twenty CRM, Chatwoot), call recording with Langfuse tracing, phone calls over SIP (incoming, outgoing, scheduled callbacks, transfers), and the embeddable website widget. Self-hosted models come next. See the <a href="#roadmap">roadmap</a>.</div>
+  <div class="callout warn"><strong>Status:</strong> Phases 0–8 are done: the stack, the voice loop, workflows with tools and storage, the knowledge base with visual product setup, the admin dashboard with sign-in and per-agent settings, integrations (webhooks, Twenty CRM, Chatwoot), call recording with Langfuse tracing, phone calls over SIP (incoming, outgoing, scheduled callbacks, transfers), and the embeddable website widget. Models stay cloud-hosted (no GPU). See the <a href="#roadmap">roadmap</a>.</div>
 </section>
 
 <section id="quickstart">
@@ -427,7 +427,7 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
   <ul>
     <li><strong>The agent only handles the conversation.</strong> Leads, tickets, callbacks (and later knowledge search and webhooks) live behind the NestJS API. The agent calls them as HTTP tools, authenticated with <code>AGENT_API_TOKEN</code>.</li>
     <li><strong>Every model is behind an alias.</strong> The agent asks LiteLLM for <code>agent-fast</code>, not for a vendor model, so a switch is a one-line change in <code>infra/litellm/config.yaml</code>.</li>
-    <li><strong>Hosted first, self-hosted later.</strong> STT, TTS and LLM providers sit in a registry (<code>agent/pipeline.py</code>), so open models (IndicConformer, Indic Parler, vLLM) can drop in later.</li>
+    <li><strong>Cloud-hosted models only.</strong> Speech is Sarvam and LLMs and embeddings are hosted APIs behind LiteLLM; nothing needs a GPU. Providers sit in a registry (<code>agent/pipeline.py</code>), so another hosted service can be added by config.</li>
     <li><strong>Data stays local.</strong> Turn detection runs in the container, and session recording to LiveKit Cloud is turned off.</li>
   </ul>
 </section>
@@ -1065,7 +1065,7 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
     <tr><td>6</td><td>Call recording with per-agent consent to RustFS, retention settings, Langfuse tracing</td><td class="status-done">Done</td></tr>
     <tr><td>7</td><td>SIP: numbers per agent, outbound calls and scheduled callbacks with calling hours and do-not-call list, transfer to a person</td><td class="status-done">Done</td></tr>
     <tr><td>8</td><td>Embeddable website widget: keys and allowed sites, captions, reconnect, rate limits and call caps</td><td class="status-done">Done</td></tr>
-    <tr><td>9</td><td>Self-hosted models on GPU (vLLM, IndicConformer, Indic Parler)</td><td>Planned</td></tr>
+    <tr><td>9</td><td>Self-hosted models on GPU</td><td>Dropped: cloud-hosted models only</td></tr>
   </table></div>
   <p class="muted">Full decisions and details: <code>PLAN.md</code>.</p>
 </section>

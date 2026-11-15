@@ -45,7 +45,7 @@ model_list:
     litellm_params:
       model: bedrock/cohere.embed-multilingual-v3
       aws_region_name: os.environ/AWS_REGION_NAME
-  # OpenRouter embeddings + local BGE-M3 are added in Phase 3.
+  # More hosted embedding providers (e.g. OpenRouter) can be added as embed-* aliases.
 
 router_settings:
   # On a quota/rate-limit error, move to the next model immediately instead of

@@ -11,8 +11,8 @@ Uses open-source parts wherever it can. Every provider can be swapped by config.
 |---|---|
 | Voice framework | **LiveKit**: self-hosted server, Agents (Python) and LiveKit SIP |
 | Languages (v1) | Indian English, Hindi and Hinglish, Tamil, Telugu, Kannada, Malayalam |
-| Hosting | Local Docker on the Mac now. Indian GPU cloud later (compose profiles stay the same) |
-| Provider strategy | **Hybrid and pluggable**: start on hosted APIs. Self-hosted open models are added later as containers and switched on by config |
+| Hosting | Local Docker on the Mac now; a regular (CPU) Linux host in India for production. **No GPU at any stage** |
+| Provider strategy | **Cloud-hosted models only** (decided 2026-11-16): Sarvam for STT/TTS, hosted LLMs and embeddings through LiteLLM. No self-hosted models. The provider registry stays pluggable for other *hosted* providers |
 | STT | **Sarvam `saaras:v4`** (hosted; Saarika models are retired). Language auto-detected, code-mixed speech supported |
 | TTS | **Sarvam `bulbul:v3`** (hosted). The voice switches to the caller's language |
 | LLM | **LiteLLM gateway** (self-hosted). Default `agent-fast` = **Gemini 3.5 Flash with thinking off** (~0.7 s to a tool call; Flash-Lite now reasons before tool calls and takes 4.5–8.5 s). Immediate fallback on quota errors: agent-fast → agent-lite → GPT-4o-mini. **Production needs a paid Gemini key** (free tier: 20 requests/day/model) |
@@ -36,7 +36,6 @@ LiteLLM exposes one OpenAI-compatible `/embeddings` endpoint over all of these:
 - **Google Vertex AI**: `gemini-embedding-001` / `text-multilingual-embedding-002`
 - **AWS Bedrock**: Cohere `embed-multilingual-v3` / Titan Embed v2
 - **OpenRouter**: embedding models wherever OpenRouter offers them for the account (to be confirmed during build)
-- **Local BGE-M3**: Infinity/TEI container. Free, multilingual, Indic-capable
 
 Each knowledge base stores its `embedding_model` and `dimension`. Changing either re-indexes that knowledge base. The pgvector column size is set per knowledge base, using separate tables or a fixed max dimension.
 
@@ -47,7 +46,7 @@ Each knowledge base stores its `embedding_model` and `dimension`. Changing eithe
 ```
  Browser widget ──WebRTC──┐                         ┌── Sarvam STT (Saarika)
                           ├──► LiveKit Server ◄──► Agent Worker (Python, LiveKit Agents)
- Phone ──SIP trunk──► LiveKit SIP ┘     │              ├── LiteLLM ──► Gemini / GPT / Claude / (vLLM later)
+ Phone ──SIP trunk──► LiveKit SIP ┘     │              ├── LiteLLM ──► Gemini / GPT / Claude (hosted)
                                         │              ├── Sarvam TTS (Bulbul)
                                   LiveKit Egress       └── Tools ──HTTP──► NestJS API
                                         │                                  │
@@ -69,10 +68,9 @@ Each knowledge base stores its `embedding_model` and `dimension`. Changing eithe
 | `recording` | `livekit-egress` |
 | `observability` | `langfuse-web`, `langfuse-worker`, `clickhouse` (reuses postgres, redis and rustfs) |
 | `crm` | `twenty-server`, `twenty-worker`, `chatwoot-web`, `chatwoot-sidekiq` (own DBs on the shared postgres, plus redis) |
-| `local-models` | `embeddings` (BGE-M3 via Infinity). Later: `vllm`, `indicconformer`, `kokoro`, `indic-parler` |
 
 - `make up`: core only. `make up-all`: everything (heavy on a Mac, so run CRM and Langfuse only when needed).
-- **Mac caveat:** WebRTC and SIP need UDP. LiveKit runs with `use_external_ip: false` and mapped UDP ports, which works on Docker Desktop. On the Linux GPU host it switches to `network_mode: host`.
+- **Mac caveat:** WebRTC and SIP need UDP. LiveKit runs with `use_external_ip: false` and mapped UDP ports, which works on Docker Desktop. On the Linux production host it switches to `network_mode: host`.
 
 ---
 
@@ -143,7 +141,7 @@ Target **≤ 800 ms** from the user stopping to the bot's first audio. Stretch g
 - The LLM can start early on a confident partial transcript (preemptive generation).
 - System prompts stay short and use LiteLLM/provider prompt caching. The fast model is the default, and the smart model is used per agent only where needed.
 - Every stage is timed on every turn and shown in Admin (p50/p95). A latency regression is a bug.
-- Later: GPU host in Mumbai with self-hosted STT/TTS/LLM, all in the same region.
+- Keep the production host in Mumbai, close to the hosted providers' Indian regions (Sarvam, Vertex `asia-south1`).
 
 ---
 
@@ -160,7 +158,7 @@ Target **≤ 800 ms** from the user stopping to the bot's first audio. Stretch g
 | 6 ✅ | **Recording and observability**: Egress to RustFS, consent flow, Langfuse traces | Every call has a recording (if consented) and a full LLM trace |
 | 7 ✅ | **SIP**: `livekit-sip`, inbound dispatch rules, outbound calls, warm transfer. Tested with a softphone | A call from Linphone/Zoiper goes through the same workflows. The SIP trunk is plugged in once chosen |
 | 8 ✅ | **Widget hardening**: embed snippet, theming, mic permission UX, live transcript, reconnect, allowed-origin tokens | Pasting the snippet into any site works securely |
-| 9 | **Self-host readiness**: `local-models` profile (vLLM with Qwen3/Sarvam-M, IndicConformer, Indic Parler/Kokoro), GPU compose override | The hosted to self-hosted swap is done by config alone, benchmarked against hosted |
+| 9 ✗ | ~~**Self-host readiness**: self-hosted STT/TTS/LLM on a GPU~~ | **Dropped** (2026-11-16): cloud-hosted models only, no GPU at any stage |
 
 ---
 
@@ -180,6 +178,6 @@ Target **≤ 800 ms** from the user stopping to the bot's first audio. Stretch g
 ## 11. Open decisions (later)
 
 1. SIP trunk provider (Exotel, Plivo or Tata/Airtel), needed before phase 7 goes live
-2. GPU cloud (E2E, AWS Mumbai, Yotta), needed before phase 9
+2. ~~GPU cloud~~ not needed: cloud-hosted models only (Phase 9 dropped)
 3. ~~Admin authentication~~ decided: email + password (scrypt, DB sessions, owner/admin roles); Google SSO can be added later
 4. Production domain and TLS (Caddy/Traefik in front of LiveKit and the web app)

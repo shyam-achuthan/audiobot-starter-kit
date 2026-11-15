@@ -1,8 +1,8 @@
 """Provider factories for STT, LLM and TTS.
 
 Adding a provider = adding one entry to a registry below; agents never import
-provider plugins directly. Self-hosted engines (IndicConformer, Indic Parler,
-Kokoro, vLLM) get registered here in Phase 9.
+provider plugins directly. All providers are cloud-hosted (no self-hosted models,
+no GPU); another hosted STT/TTS can be registered here.
 """
 
 from __future__ import annotations
