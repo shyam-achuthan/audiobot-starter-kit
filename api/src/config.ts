@@ -11,6 +11,10 @@ export const config = {
     .map((s) => s.trim())
     .filter(Boolean),
   databaseUrl: required('DATABASE_URL'),
+  // Run pending DB migrations on startup (disable when migrating out-of-band).
+  autoMigrate: (process.env.AUTO_MIGRATE ?? 'true') !== 'false',
+  // Shared secret for the voice agent and server-side admin calls.
+  agentApiToken: required('AGENT_API_TOKEN'),
   livekit: {
     // Server-to-server URL (inside the Docker network)
     url: required('LIVEKIT_URL'),

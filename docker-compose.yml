@@ -94,6 +94,10 @@ services:
     environment:
       # Vertex AI service-account key, mounted read-only from infra/litellm/secrets/ (gitignored)
       GOOGLE_APPLICATION_CREDENTIALS: /secrets/vertex-sa.json
+      # Optional proxy for provider traffic (empty = direct). Internal hosts bypass it.
+      HTTPS_PROXY: ${OUTBOUND_PROXY:-}
+      HTTP_PROXY: ${OUTBOUND_PROXY:-}
+      NO_PROXY: localhost,127.0.0.1,api,agent,livekit,postgres,redis,rustfs,web
     volumes:
       - ./infra/litellm/config.yaml:/app/config.yaml:ro
       - ./infra/litellm/secrets:/secrets:ro
@@ -116,6 +120,7 @@ services:
       LIVEKIT_PUBLIC_URL: ${LIVEKIT_PUBLIC_URL}
       LITELLM_URL: http://litellm:4000
       CORS_ORIGINS: ${CORS_ORIGINS}
+      AGENT_API_TOKEN: ${AGENT_API_TOKEN}
     ports:
       - "4000:4000"
     depends_on:
@@ -130,9 +135,12 @@ services:
     environment:
       <<: *livekit-env
       API_URL: http://api:4000
+      AGENT_API_TOKEN: ${AGENT_API_TOKEN}
       LITELLM_URL: http://litellm:4000
       LITELLM_API_KEY: ${LITELLM_MASTER_KEY}
       SARVAM_API_KEY: ${SARVAM_API_KEY}
+      OUTBOUND_PROXY: ${OUTBOUND_PROXY:-}
+      COMPANY_NAME: ${COMPANY_NAME:-AudioBots Demo}
       # Voice pipeline (defaults live in agent/settings.py)
       STT_MODEL: ${STT_MODEL:-saaras:v4}
       STT_MODE: ${STT_MODE:-transcribe}
@@ -155,6 +163,7 @@ services:
     build: ./web
     environment:
       API_INTERNAL_URL: http://api:4000
+      AGENT_API_TOKEN: ${AGENT_API_TOKEN}
     ports:
       - "3000:3000"
     depends_on:

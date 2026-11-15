@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from livekit import rtc
@@ -33,10 +34,18 @@ def _ms(v: float | None) -> int | None:
 
 
 class CallTelemetry:
-    def __init__(self, room: rtc.Room, session: AgentSession, call_id: str, workflow: str) -> None:
+    def __init__(
+        self,
+        room: rtc.Room,
+        session: AgentSession,
+        call_id: str,
+        agent_name: Callable[[], str],
+        on_turn: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
+    ) -> None:
         self._room = room
         self._call_id = call_id
-        self._workflow = workflow
+        self._agent_name = agent_name  # which workflow agent is speaking right now
+        self._on_turn = on_turn  # e.g. persist to the API
         self._tasks: set[asyncio.Task[Any]] = set()
         self._pending_user: ChatMessage | None = None
         self._turn = 0
@@ -95,7 +104,7 @@ class CallTelemetry:
         record = {
             "type": "turn",
             "call_id": self._call_id,
-            "workflow": self._workflow,
+            "agent": self._agent_name(),
             "turn": self._turn,
             "language": self.language,
             "user_text": user.text_content if user else None,
@@ -105,6 +114,8 @@ class CallTelemetry:
         }
         logger.info("turn", extra={"event": "turn", **record})
         self.publish(record)
+        if self._on_turn:
+            self.track(self._on_turn(record))
 
     async def aclose(self) -> None:
         if self._tasks:

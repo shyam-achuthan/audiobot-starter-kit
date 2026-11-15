@@ -13,15 +13,17 @@ Uses open-source parts wherever it can. Every provider can be swapped by config.
 | Languages (v1) | Indian English, Hindi and Hinglish, Tamil, Telugu, Kannada, Malayalam |
 | Hosting | Local Docker on the Mac now. Indian GPU cloud later (compose profiles stay the same) |
 | Provider strategy | **Hybrid and pluggable**: start on hosted APIs. Self-hosted open models are added later as containers and switched on by config |
-| STT | **Sarvam Saarika** (hosted). Language auto-detected, code-mixed speech supported |
-| TTS | **Sarvam Bulbul** (hosted). One voice per language |
-| LLM | **LiteLLM gateway** (self-hosted). Default **Gemini Flash**, falls back to GPT-4o-mini or Claude Haiku. Model can be overridden per agent |
+| STT | **Sarvam `saaras:v4`** (hosted; Saarika models are retired). Language auto-detected, code-mixed speech supported |
+| TTS | **Sarvam `bulbul:v3`** (hosted). The voice switches to the caller's language |
+| LLM | **LiteLLM gateway** (self-hosted). Default `agent-fast` = **Gemini Flash-Lite** (thinking models were too slow for voice); `agent-smart` = Gemini 3.5 Flash with thinking off; GPT-4o-mini / Claude Haiku as fallbacks |
 | Embeddings | **Configurable through LiteLLM**: Vertex AI, AWS Bedrock, OpenRouter, or a local BGE-M3 container. Chosen per knowledge base in Admin |
 | VAD / turn-taking | Silero VAD and the LiveKit multilingual turn-detector, with interruption (barge-in) support |
 | Workflows (v1) | Router/Receptionist, then Lead Qualification, Sales and Support (with handoffs between them) |
 | System of record | **Own Postgres with pgvector**, plus **outbound webhooks** |
 | Local CRM / helpdesk | **Twenty CRM** and **Chatwoot** in the stack, synced from webhooks, so every flow can be checked locally |
-| Backend API | **NestJS** (TypeScript) |
+| Backend API | **NestJS** (TypeScript) with **Sequelize** (`sequelize-typescript`, Umzug migrations run on startup) |
+| Bookings (v1) | **Callback requests only**: agents capture a preferred callback time as a high-priority callback ticket; no calendar |
+| Human handoff (until SIP) | **Callback ticket**: when a caller asks for a person, the agent confirms name and phone and books a high-priority callback |
 | Admin and demo | **Next.js** with shadcn/ui. The demo page embeds the real widget |
 | Web widget | Small TypeScript bundle (Vite), embedded with one `<script>` tag |
 | Observability | **Langfuse** (self-hosted) for LLM traces, plus per-stage latency metrics in Postgres |
@@ -94,7 +96,7 @@ audiobots/
 ├── api/                        # NestJS
 │   └── src/modules/ agents, calls, livekit (tokens, webhooks, SIP dispatch),
 │                     knowledge (ingest, chunk, embed, search), leads, tickets,
-│                     meetings, webhooks (outbound + retries), integrations (twenty, chatwoot)
+│                     webhooks (outbound + retries), integrations (twenty, chatwoot)
 ├── web/                        # Next.js — /admin/*, /demo
 └── widget/                     # Vite TS bundle → audiobots-widget.js
 ```
@@ -109,7 +111,7 @@ audiobots/
 - `call_turns`: role, text, language, timestamps, latency breakdown (EOU→STT final, LLM TTFT, TTS TTFB, total)
 - `leads`: name, phone, email, company, BANT fields, score, status, source call
 - `tickets`: subject, description, priority, status, external ids (Chatwoot)
-- `meetings`: lead, slot, status
+- ~~`meetings`~~: not needed in v1. Callback requests are `tickets` with `type=callback` and a preferred time
 - `webhook_endpoints`, `webhook_deliveries` (events: `call.started|ended`, `lead.created|updated`, `ticket.created`, `meeting.booked`)
 
 ---
@@ -148,9 +150,9 @@ Target **≤ 800 ms** from the user stopping to the bot's first audio. Stretch g
 
 | # | Phase | Done when |
 |---|---|---|
-| 0 | **Scaffold**: repo, compose `core`, Postgres init, `.env.example`, Makefile | `make up` boots LiveKit, API, web and the agent, all healthy |
-| 1 | **Voice loop**: Sarvam STT/TTS, LiteLLM to Gemini, VAD, turn detection, barge-in, latency metrics | Talking on `/demo` in English, Hindi and Tamil works, with per-turn latency logged |
-| 2 | **Workflows**: Router plus the 3 agents, handoffs, tools against the NestJS API, calls and turns stored | Each flow can be completed end-to-end on `/demo`, and the lead, ticket and meeting rows appear in Postgres |
+| 0 ✅ | **Scaffold**: repo, compose `core`, Postgres init, `.env.example`, Makefile | `make up` boots LiveKit, API, web and the agent, all healthy |
+| 1 ✅ | **Voice loop**: Sarvam STT/TTS, LiteLLM to Gemini, VAD, turn detection, barge-in, latency metrics | Talking on `/demo` in English, Hindi and Tamil works, with per-turn latency logged |
+| 2 ✅ | **Workflows**: Router plus the 3 agents, handoffs, tools against the NestJS API, calls and turns stored | Each flow can be completed end-to-end (scripted scenario calls pass), and the lead, ticket and callback rows appear in Postgres |
 | 3 | **Knowledge base / RAG**: upload, chunk, embed (provider chosen per KB), pgvector search | Sales and Support answer from uploaded docs, and switching the embedding provider re-indexes |
 | 4 | **Admin dashboard**: agents (prompts, models, voices), knowledge bases, calls with transcript and audio, leads, tickets, latency charts | Agent behaviour can be changed from the UI without a redeploy |
 | 5 | **Integrations**: outbound webhooks with retries, Twenty and Chatwoot sync (`crm` profile) | A lead shows up in Twenty and a ticket in Chatwoot automatically |

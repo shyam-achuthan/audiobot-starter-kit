@@ -1,0 +1,28 @@
+import { Logger } from '@nestjs/common';
+import { Sequelize } from 'sequelize-typescript';
+import { SequelizeStorage, Umzug } from 'umzug';
+import * as m0001 from './migrations/0001-init';
+
+// Migrations are imported explicitly (no globbing), so they work the same
+// from ts sources and compiled dist/. Append new ones in order.
+const MIGRATIONS = [{ name: '0001-init', ...m0001 }];
+
+export function createMigrator(sequelize: Sequelize) {
+  const logger = new Logger('Migrations');
+  return new Umzug({
+    migrations: MIGRATIONS.map((m) => ({ name: m.name, up: m.up, down: m.down })),
+    context: sequelize.getQueryInterface(),
+    storage: new SequelizeStorage({ sequelize, tableName: 'schema_migrations' }),
+    logger: {
+      info: (msg) => logger.log(JSON.stringify(msg)),
+      warn: (msg) => logger.warn(JSON.stringify(msg)),
+      error: (msg) => logger.error(JSON.stringify(msg)),
+      debug: () => undefined,
+    },
+  });
+}
+
+export async function runMigrations(sequelize: Sequelize) {
+  const applied = await createMigrator(sequelize).up();
+  return applied.map((m) => m.name);
+}

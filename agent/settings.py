@@ -41,6 +41,10 @@ class Settings:
     tts_speaker: str
     tts_default_language: str
 
+    # Optional HTTP proxy for traffic to cloud speech providers (corporate networks,
+    # or when Docker's direct egress is broken). Internal services never use it.
+    outbound_proxy: str | None
+
     # LLM (always through the LiteLLM gateway, OpenAI-compatible)
     litellm_url: str
     litellm_api_key: str
@@ -65,6 +69,7 @@ class Settings:
             tts_model=_env("TTS_MODEL", "bulbul:v3"),
             tts_speaker=_env("TTS_SPEAKER", "priya"),
             tts_default_language=_env("TTS_DEFAULT_LANGUAGE", "en-IN"),
+            outbound_proxy=os.environ.get("OUTBOUND_PROXY") or None,
             litellm_url=_env("LITELLM_URL", "http://litellm:4000").rstrip("/"),
             litellm_api_key=_env("LITELLM_API_KEY", "sk-missing"),
             llm_model=_env("LLM_MODEL", "agent-fast"),

@@ -24,12 +24,25 @@ fill() { # fill KEY VALUE — only replaces __GENERATE__ placeholders
   if grep -q "^$1=__GENERATE__" .env; then set_var "$1" "$2"; fi
 }
 
+# Upgrades: add settings that are new in .env.example to an existing .env.
+added=()
+while IFS= read -r line || [[ -n "$line" ]]; do
+  [[ "$line" =~ ^([A-Z][A-Z0-9_]*)= ]] || continue
+  key=${BASH_REMATCH[1]}
+  if ! grep -q "^${key}=" .env; then
+    printf '%s\n' "$line" >> .env
+    added+=("$key")
+  fi
+done < .env.example
+if (( ${#added[@]} )); then echo "Added new settings to .env: ${added[*]}"; fi
+
 fill LIVEKIT_API_KEY "API$(rand 12)"
 fill LIVEKIT_API_SECRET "$(rand 48)"
 fill POSTGRES_PASSWORD "$(rand 24)"
 fill S3_ACCESS_KEY "$(rand 20)"
 fill S3_SECRET_KEY "$(rand 40)"
 fill LITELLM_MASTER_KEY "sk-$(rand 32)"
+fill AGENT_API_TOKEN "$(rand 40)"
 
 # Detect the LAN IP of the default interface (macOS, then Linux).
 IP=""

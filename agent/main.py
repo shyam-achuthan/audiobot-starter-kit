@@ -1,9 +1,11 @@
 """AudioBots agent worker.
 
-Phase 1: full voice loop for web calls.
-  mic -> Silero VAD -> Sarvam STT (auto language) -> LiteLLM (Gemini Flash)
-      -> Sarvam TTS (voice follows the caller's language) -> speaker
+Voice loop:
+  mic -> Silero VAD -> Sarvam STT (auto language) -> LiteLLM (Gemini) -> Sarvam TTS -> speaker
 with local turn detection, barge-in and per-turn latency telemetry.
+
+Phase 2: multi-agent workflows (receptionist -> lead qualification / sales / support)
+with tools backed by the NestJS API; every call and turn is stored in Postgres.
 """
 
 from __future__ import annotations
@@ -13,7 +15,6 @@ import logging
 import os
 
 from livekit.agents import (
-    Agent,
     AgentServer,
     AgentSession,
     JobContext,
@@ -25,25 +26,22 @@ from livekit.agents import (
 from livekit.plugins import silero
 
 import pipeline
-import prompts
+from api_client import ApiClient, ApiError
 from languages import SUPPORTED, TURN_DETECTOR_LANGS, normalize
-
-NO_TURN_MODEL_LANGS = sorted(
-    {c.split("-")[0] for c in SUPPORTED} - TURN_DETECTOR_LANGS
-)
 from settings import Settings
 from telemetry import CallTelemetry
+from workflows import AGENTS, BaseAgent, CallData
 
 logger = logging.getLogger("audiobots.agent")
+
+NO_TURN_MODEL_LANGS = sorted({c.split("-")[0] for c in SUPPORTED} - TURN_DETECTOR_LANGS)
 
 
 def prewarm(proc: JobProcess) -> None:
     # Load models once per worker process, not per call.
-    # min_silence_duration decides when VAD reports end-of-speech, which also
-    # triggers the STT flush. The turn detector still decides end-of-turn, so a
-    # short value here cuts latency without cutting callers off mid-sentence.
+    # min_silence_duration decides when VAD reports end-of-speech; the turn detector
+    # still decides end-of-turn. LiveKit requires >= 0.25 s with the turn detector.
     proc.userdata["vad"] = silero.VAD.load(
-        # (LiveKit requires >= 0.25 s when the turn detector is enabled.)
         min_silence_duration=max(0.25, float(os.environ.get("VAD_MIN_SILENCE", "0.25"))),
     )
 
@@ -61,20 +59,7 @@ def workflow_of(metadata: str | None) -> str:
         wf = json.loads(metadata or "{}").get("workflow", "router")
     except json.JSONDecodeError:
         return "router"
-    return wf if wf in prompts.WORKFLOWS else "router"
-
-
-class VoiceAgent(Agent):
-    def __init__(self, workflow: str) -> None:
-        super().__init__(instructions=prompts.instructions_for(workflow))
-        self.workflow = workflow
-
-    async def on_enter(self) -> None:
-        self.session.generate_reply(instructions=prompts.greeting_for(self.workflow))
-
-    async def set_language(self, language: str) -> None:
-        """Pin the reply language in the system prompt (small models drift otherwise)."""
-        await self.update_instructions(prompts.instructions_for(self.workflow, language))
+    return wf if wf in AGENTS else "router"
 
 
 @server.rtc_session()
@@ -101,7 +86,16 @@ async def entrypoint(ctx: JobContext) -> None:
         ctx.shutdown(reason="pipeline config error")
         return
 
-    session = AgentSession(
+    # ---- call record (the call still works if the API is down; it just isn't stored) ----
+    api = ApiClient()
+    call = CallData(api=api, room=ctx.room.name, workflow=workflow)
+    try:
+        call.call_id = (await api.create_call(ctx.room.name, workflow))["id"]
+    except ApiError as e:
+        logger.error("could not create call record: %s", e.message)
+
+    session: AgentSession[CallData] = AgentSession(
+        userdata=call,
         vad=ctx.proc.userdata["vad"],
         stt=stt,
         llm=llm,
@@ -111,7 +105,7 @@ async def entrypoint(ctx: JobContext) -> None:
             # end the turn on silence using the endpointing delays below.
             "turn_detection": inference.TurnDetector(
                 version="v1-mini",
-                # The model has no Tamil/Telugu/Kannada/Malayalam data; a 0 threshold means
+                # No Tamil/Telugu/Kannada/Malayalam data in the model: a 0 threshold means
                 # it never holds those turns open, so they end after min_delay of silence.
                 unlikely_threshold={code: 0.0 for code in NO_TURN_MODEL_LANGS},
             ),
@@ -130,27 +124,65 @@ async def entrypoint(ctx: JobContext) -> None:
         },
     )
 
-    telemetry = CallTelemetry(ctx.room, session, call_id=ctx.room.name, workflow=workflow)
+    async def persist_turn(record: dict) -> None:
+        if not call.call_id:
+            return
+        lat = record["latency"]
+        try:
+            await api.add_turn(
+                call.call_id, turnNo=record["turn"], agent=record["agent"],
+                language=record["language"], userText=record["user_text"],
+                agentText=record["agent_text"], interrupted=record["interrupted"],
+                eotMs=lat["end_of_turn_ms"], sttMs=lat["stt_ms"], llmTtftMs=lat["llm_ttft_ms"],
+                ttsTtfbMs=lat["tts_ttfb_ms"], e2eMs=lat["e2e_ms"],
+            )
+        except ApiError as e:
+            logger.warning("could not store turn %s: %s", record["turn"], e.message)
 
-    # Make the voice AND the reply language follow the caller (detected per utterance by STT).
-    agent = VoiceAgent(workflow)
-    current_lang = {"value": None}
+    telemetry = CallTelemetry(
+        ctx.room, session, call_id=call.call_id or ctx.room.name,
+        agent_name=lambda: call.workflow, on_turn=persist_turn,
+    )
 
+    # Voice AND reply language follow the caller (detected per utterance by STT).
     def on_transcribed(ev: UserInputTranscribedEvent) -> None:
         lang = normalize(ev.language)
-        if ev.is_final and lang and lang != current_lang["value"]:
-            logger.info("language switch %s -> %s", current_lang["value"], lang)
-            current_lang["value"] = lang
+        if ev.is_final and lang and lang != call.language:
+            logger.info("language switch %s -> %s", call.language, lang)
+            call.language = lang
             pipeline.set_tts_language(tts, lang)
-            telemetry.track(agent.set_language(lang))
+            agent = session.current_agent
+            if isinstance(agent, BaseAgent):
+                telemetry.track(agent.set_language(lang))
             telemetry.publish({"type": "language", "language": lang})
 
     session.on("user_input_transcribed", on_transcribed)
-    ctx.add_shutdown_callback(telemetry.aclose)
 
-    telemetry.publish({"type": "agent.ready", "workflow": workflow, "phase": 1})
+    async def finish_call() -> None:
+        await telemetry.aclose()
+        if call.call_id:
+            try:
+                await api.update_call(
+                    call.call_id, status="ended", agentPath=call.agent_path or [workflow],
+                    language=call.language,
+                )
+            except ApiError as e:
+                logger.warning("could not close call record: %s", e.message)
+        await api.aclose()
+        await pipeline.close_provider_session()
+
+    ctx.add_shutdown_callback(finish_call)
+
+    # Caller hung up (or the session failed): end the job so finish_call runs promptly.
+    def on_close(ev) -> None:
+        logger.info("session closed (%s); ending job", getattr(ev, "reason", "unknown"))
+        ctx.shutdown(reason="session closed")
+
+    session.on("close", on_close)
+
+    telemetry.publish({"type": "agent.ready", "workflow": workflow, "callId": call.call_id, "phase": 2})
     await session.start(
-        agent=agent,
+        agent=AGENTS[workflow](call),
         room=ctx.room,
         record=False,  # keep audio/transcripts off LiveKit Cloud; recording is Phase 6
     )

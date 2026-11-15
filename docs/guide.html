@@ -184,6 +184,7 @@ footer { color: var(--faint); font-size: .85rem; border-top: 1px solid var(--bor
     <li class="group">Use</li>
     <li><a href="#demo">Demo page</a></li>
     <li><a href="#workflows">Workflows</a></li>
+    <li><a href="#data-api">Data &amp; API</a></li>
     <li><a href="#services">Services &amp; URLs</a></li>
     <li><a href="#commands">Commands</a></li>
     <li class="group">Configure</li>
@@ -214,8 +215,10 @@ footer { color: var(--faint); font-size: .85rem; border-top: 1px solid var(--bor
     <div class="card"><h3>Auto language</h3><p>Detects the caller's language on every utterance. The reply and the voice switch to match.</p></div>
     <div class="card"><h3>Local turn-taking</h3><p>Voice activity detection and an end-of-turn model run inside the agent. Nothing goes to LiveKit Cloud.</p></div>
     <div class="card"><h3>Latency telemetry</h3><p>Every turn's timings (end of turn, STT, LLM, TTS, total) are logged and shown live on the demo page.</p></div>
+    <div class="card"><h3>Workflow agents</h3><p>A receptionist hands off to lead-qualification, sales or support agents, keeping the conversation history.</p></div>
+    <div class="card"><h3>Saved to Postgres</h3><p>Every call, turn, lead, support ticket and callback request is stored through the NestJS API (Sequelize).</p></div>
   </div>
-  <div class="callout warn"><strong>Status:</strong> Phases 0–1 are done (stack and voice loop). Workflows with tools, the knowledge base, admin, CRM sync, recording and SIP come in later phases. See the <a href="#roadmap">roadmap</a>.</div>
+  <div class="callout warn"><strong>Status:</strong> Phases 0–2 are done: the stack, the voice loop, and workflows with tools and storage. The knowledge base, admin dashboard, CRM sync, recording and SIP come in later phases. See the <a href="#roadmap">roadmap</a>.</div>
 </section>
 
 <section id="quickstart">
@@ -343,9 +346,9 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
       <rect x="526" y="128" width="212" height="56" rx="8" class="box"/>
       <text x="538" y="152" class="t-title">Telemetry + language</text>
       <text x="538" y="170" class="t-sub">per-turn latency · voice follows caller</text>
-      <rect x="856" y="128" width="90" height="56" rx="8" class="plan"/>
+      <rect x="856" y="128" width="90" height="56" rx="8" class="box"/>
       <text x="868" y="152" class="t-title">Tools</text>
-      <text x="868" y="170" class="t-sub">Phase 2</text>
+      <text x="868" y="170" class="t-sub">leads · tickets</text>
       <path d="M626 80 H636" class="wire" marker-end="url(#ah)"/>
       <path d="M738 80 H748" class="wire" marker-end="url(#ah)"/>
       <path d="M844 80 H854" class="wire" marker-end="url(#ah)"/>
@@ -372,9 +375,9 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
       <text x="526" y="326" class="t-sub">aliases · fallbacks · :4100</text>
       <rect x="740" y="280" width="220" height="66" rx="10" class="box"/>
       <text x="756" y="306" class="t-title">NestJS API</text>
-      <text x="756" y="326" class="t-sub">tokens · health · business logic · :4000</text>
+      <text x="756" y="326" class="t-sub">calls · leads · tickets · :4000</text>
 
-      <path d="M900 184 V278" class="wire-plan" marker-end="url(#ah)"/>
+      <path d="M900 184 V278" class="wire" marker-end="url(#ah)"/>
       <path d="M880 108 Q880 250 640 278" class="wire" marker-end="url(#ah)"/>
       <path d="M510 313 H452" class="wire" marker-end="url(#ah)"/>
       <path d="M797 108 Q797 220 230 290" class="wire" marker-end="url(#ah)"/>
@@ -382,7 +385,7 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
 
       <rect x="510" y="380" width="140" height="62" rx="10" class="box"/>
       <text x="524" y="405" class="t-title">Postgres</text>
-      <text x="524" y="424" class="t-sub">+ pgvector</text>
+      <text x="524" y="424" class="t-sub">calls, leads, tickets</text>
       <rect x="665" y="380" width="120" height="62" rx="10" class="box"/>
       <text x="679" y="405" class="t-title">Redis</text>
       <text x="679" y="424" class="t-sub">LiveKit state</text>
@@ -410,7 +413,7 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
 
   <h3>Design principles</h3>
   <ul>
-    <li><strong>The agent only handles the conversation.</strong> Leads, tickets, bookings, knowledge search and webhooks live behind the NestJS API. The agent calls them as HTTP tools (Phase 2).</li>
+    <li><strong>The agent only handles the conversation.</strong> Leads, tickets, callbacks (and later knowledge search and webhooks) live behind the NestJS API. The agent calls them as HTTP tools, authenticated with <code>AGENT_API_TOKEN</code>.</li>
     <li><strong>Every model is behind an alias.</strong> The agent asks LiteLLM for <code>agent-fast</code>, not for a vendor model, so a switch is a one-line change in <code>infra/litellm/config.yaml</code>.</li>
     <li><strong>Hosted first, self-hosted later.</strong> STT, TTS and LLM providers sit in a registry (<code>agent/pipeline.py</code>), so open models (IndicConformer, Indic Parler, vLLM) can drop in later.</li>
     <li><strong>Data stays local.</strong> Turn detection runs in the container, and session recording to LiveKit Cloud is turned off.</li>
@@ -422,12 +425,14 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
   <ol class="steps">
     <li><strong>Token</strong> The demo page calls <code>POST /v1/livekit/token</code> (through the web app's <code>/backend</code> proxy) with the chosen workflow. The API creates a fresh room and a 15-minute token. The workflow goes into the participant metadata.</li>
     <li><strong>Join</strong> The browser joins the room over WebRTC. LiveKit automatically dispatches an idle agent worker process to the new room.</li>
-    <li><strong>Greet</strong> The agent reads the workflow, builds the pipeline from <code>.env</code> settings and speaks a greeting that says it's an AI assistant.</li>
+    <li><strong>Greet</strong> The agent reads the workflow, creates a call record through the API, builds the pipeline from <code>.env</code> settings, and greets the caller as an AI assistant.</li>
     <li><strong>Listen</strong> Silero VAD detects speech. Sarvam streams interim transcripts (shown as live captions) and detects the language.</li>
     <li><strong>End of turn</strong> After 0.25 s of silence, the local turn detector (English and Hindi) or a fixed delay (other languages) decides that the caller has finished. The transcript is finalized.</li>
     <li><strong>Reply</strong> The LLM streams its reply. Sentences go to Sarvam TTS as they are produced, so speech starts before the full answer exists.</li>
+    <li><strong>Act</strong> When needed, the LLM calls a tool: save lead details, create a ticket, book a callback, look up a ticket, or transfer to another agent. Tools call the API. An API error (for example an invalid phone number) goes back to the LLM as advice ("ask the caller to repeat it").</li>
+    <li><strong>End</strong> The agent says goodbye and ends the call, or the caller hangs up. The API then marks the call ended and stores its outcome, turn count and median latency.</li>
     <li><strong>Interrupt</strong> If the caller talks over the bot, playback stops at once (VAD-based barge-in). If the "interruption" turns out to be just noise, the bot resumes.</li>
-    <li><strong>Telemetry</strong> Each finished turn publishes its text and timings on the room's <code>agent</code> data channel. The agent logs them as JSON and the demo page shows them.</li>
+    <li><strong>Telemetry</strong> Each finished turn publishes its text and timings on the room's <code>agent</code> data channel and saves them to <code>call_turns</code>. The demo page shows them live.</li>
   </ol>
 </section>
 
@@ -527,14 +532,51 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
 
 <section id="workflows">
   <h2>Workflows</h2>
-  <p>In Phase 1 each workflow is one voice assistant with its own role prompt (<code>agent/prompts.py</code>). The bot never quotes prices or policies, because it doesn't have product data yet. In Phase 2 these become real flows with tools and handoffs between them.</p>
+  <p>Each workflow is its own agent with a role prompt (<code>agent/prompts.py</code>) and tools (<code>agent/workflows.py</code>). Agents share one call record and hand off to each other with the conversation history, so the caller never repeats themselves. None of them quote prices or policies yet; they offer a specialist callback instead. The knowledge base arrives in Phase 3.</p>
   <div class="table-wrap"><table>
-    <tr><th>Workflow</th><th>Today</th><th>Phase 2+</th></tr>
-    <tr><td><code>router</code> (Receptionist)</td><td>Finds out what the caller wants</td><td>Detects intent and language, then hands off to the right agent</td></tr>
-    <tr><td><code>lead_qualification</code></td><td>Asks about needs, budget, decision maker and timeline</td><td>BANT slot-filling, <code>create_lead</code>, <code>book_meeting</code>, sync to Twenty CRM</td></tr>
-    <tr><td><code>sales</code></td><td>Discusses needs, offers a specialist</td><td>Knowledge-base answers, objection handling, warm transfer</td></tr>
-    <tr><td><code>support</code></td><td>Clarifies the problem, suggests next steps</td><td>FAQ answers, ticket lookup and creation in Chatwoot, escalation</td></tr>
+    <tr><th>Agent</th><th>Does</th><th>Tools</th></tr>
+    <tr><td><code>router</code> (Receptionist)</td><td>Finds out what the caller wants and transfers straight away, without asking permission</td><td><code>transfer_to_sales</code>, <code>transfer_to_support</code>, <code>transfer_to_lead_qualification</code></td></tr>
+    <tr><td><code>lead_qualification</code></td><td>Collects name, need, team size, budget, decision maker, timeline and phone one question at a time, scores the lead 0–100, books a specialist callback</td><td><code>save_lead_details</code>, <code>finish_qualification</code>, <code>transfer_to_sales</code></td></tr>
+    <tr><td><code>sales</code></td><td>Understands needs, handles objections, books a specialist callback for pricing, a demo or a proposal</td><td><code>request_callback</code>, <code>save_contact</code>, <code>transfer_to_lead_qualification</code>, <code>transfer_to_support</code></td></tr>
+    <tr><td><code>support</code></td><td>Clarifies the problem, suggests simple fixes, raises a ticket with a priority, looks up existing tickets by number or phone</td><td><code>create_support_ticket</code>, <code>lookup_tickets</code>, <code>transfer_to_sales</code></td></tr>
+    <tr><td>All agents</td><td>Callback from a person on request, then hang up after the goodbye</td><td><code>request_human_callback</code>, <code>end_call</code></td></tr>
   </table></div>
+  <h3>Guardrails built into the tools</h3>
+  <ul>
+    <li><strong>Phone numbers must be confirmed.</strong> Tools that save a number require <code>phone_confirmed=true</code>. Without it they tell the LLM to read the number back in groups ("98450, 12345") and wait for a yes.</li>
+    <li><strong>Indian numbers are normalized</strong> to <code>+91…</code>, including spoken formats ("098450-12345") and Indian-script digits (९८४५…, ௯௮…). An invalid number makes the agent ask again.</li>
+    <li><strong>Placeholders are dropped.</strong> If the LLM fills an optional field with "not provided" or an invalid email, that field is skipped instead of failing the whole save.</li>
+    <li><strong>Ticket numbers are spoken digit by digit</strong> ("ticket number 1 0 1 2"), and the reply language stays pinned to the caller's language across handoffs.</li>
+  </ul>
+  <div class="callout tip"><strong>Callback-only booking.</strong> There's no calendar in v1. "Book a meeting" and "talk to a person" both become a high-priority <code>callback</code> ticket with the caller's preferred time, in their own words. Live transfer to a human comes with SIP in Phase 7.</div>
+</section>
+
+<section id="data-api">
+  <h2>Data &amp; API</h2>
+  <p>The NestJS API owns all data, through <strong>Sequelize</strong> (<code>sequelize-typescript</code> models). The schema comes from versioned migrations in <code>api/src/database/migrations/</code>, applied automatically when the API starts (disable with <code>AUTO_MIGRATE=false</code>). <code>/health</code> reports the latest applied migration.</p>
+  <div class="table-wrap"><table>
+    <tr><th>Table</th><th>Holds</th></tr>
+    <tr><td><code>calls</code></td><td>One row per call: room, channel, starting workflow, agent path (e.g. router → support), language, status, outcome, caller name and phone, turn count, median voice-to-voice latency</td></tr>
+    <tr><td><code>call_turns</code></td><td>Every turn: agent, language, caller text, agent text, interrupted flag, and latency per stage (end of turn, STT, LLM, TTS, total)</td></tr>
+    <tr><td><code>leads</code></td><td>Name, phone (+91…), email, company, need, team size, budget, authority, timeline, score, status (new / qualified / unqualified / callback), preferred callback time</td></tr>
+    <tr><td><code>tickets</code></td><td>Support issues and callback requests: number (TKT-1001 upwards), type, subject, description, priority, status, contact, preferred callback time</td></tr>
+  </table></div>
+  <p class="muted">Call outcome only moves up in priority: <code>callback_requested</code> &gt; <code>ticket_created</code> &gt; <code>lead_captured</code> &gt; <code>info_only</code> &gt; <code>abandoned</code>.</p>
+  <h3>Endpoints</h3>
+  <p>Everything under <code>/v1</code> except the browser token requires <code>Authorization: Bearer $AGENT_API_TOKEN</code>. Admin user login arrives in Phase 4.</p>
+  <div class="table-wrap"><table>
+    <tr><th>Method &amp; path</th><th>Purpose</th></tr>
+    <tr><td><code>POST /v1/livekit/token</code></td><td>Public. Room and token for a browser call, with <code>{"workflow": "router|sales|support|lead_qualification"}</code></td></tr>
+    <tr><td><code>POST /v1/calls</code>, <code>PATCH /v1/calls/:id</code></td><td>Create a call, update it, or end it (<code>{"status":"ended"}</code> computes turns, median latency and outcome)</td></tr>
+    <tr><td><code>POST /v1/calls/:id/turns</code></td><td>Store one turn with its latency</td></tr>
+    <tr><td><code>GET /v1/calls</code>, <code>GET /v1/calls/:id</code></td><td>List calls, or one call with its turns, leads and tickets</td></tr>
+    <tr><td><code>POST /v1/leads</code>, <code>PATCH /v1/leads/:id</code>, <code>GET /v1/leads[/:id]</code></td><td>Create or partially update leads (empty fields never overwrite saved ones)</td></tr>
+    <tr><td><code>POST /v1/tickets</code>, <code>PATCH /v1/tickets/:ref</code>, <code>GET /v1/tickets[/:ref]</code></td><td>Tickets. <code>:ref</code> accepts <code>TKT-1004</code>, <code>1004</code> or a UUID</td></tr>
+    <tr><td><code>GET /v1/tickets/lookup?ref=…|phone=…</code></td><td>Voice lookup: by ticket number, or the caller's latest three tickets by phone</td></tr>
+  </table></div>
+  <div class="code"><pre>T=$(grep ^AGENT_API_TOKEN= .env | cut -d= -f2)
+curl -s localhost:4000/v1/calls?limit=5 -H "Authorization: Bearer $T"
+curl -s localhost:4000/v1/tickets/1004  -H "Authorization: Bearer $T"</pre></div>
 </section>
 
 <section id="services">
@@ -571,7 +613,7 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
 
 <section id="config">
   <h2>Configuration (<code>.env</code>)</h2>
-  <p><code>.env</code> is created from <code>.env.example</code> by <code>make env</code> or <code>./setup.sh</code>. Values shown as <em>generated</em> are filled with random secrets. Re-running never overwrites existing values.</p>
+  <p><code>.env</code> is created from <code>.env.example</code> by <code>make env</code> or <code>./setup.sh</code>. Values shown as <em>generated</em> are filled with random secrets. Re-running never overwrites existing values, and settings added to <code>.env.example</code> in newer versions are appended to your <code>.env</code> automatically.</p>
   <div class="table-wrap"><table>
     <tr><th>Variable</th><th>Default</th><th>Description</th></tr>
     <tr><td><code>LIVEKIT_API_KEY</code> / <code>_SECRET</code></td><td><em>generated</em></td><td>Shared by LiveKit, the API and the agent</td></tr>
@@ -580,6 +622,8 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
     <tr><td><code>POSTGRES_USER</code> / <code>_PASSWORD</code> / <code>_DB</code></td><td>audiobots / <em>generated</em> / audiobots</td><td>Database credentials</td></tr>
     <tr><td><code>S3_ACCESS_KEY</code> / <code>S3_SECRET_KEY</code></td><td><em>generated</em></td><td>RustFS credentials</td></tr>
     <tr><td><code>LITELLM_MASTER_KEY</code></td><td><em>generated</em></td><td>Auth for the LiteLLM gateway</td></tr>
+    <tr><td><code>AGENT_API_TOKEN</code></td><td><em>generated</em></td><td>Shared secret the agent (and server-side admin pages) use to call the API</td></tr>
+    <tr><td><code>COMPANY_NAME</code></td><td>AudioBots Demo</td><td>Business name the agents introduce themselves with</td></tr>
     <tr><td><code>SARVAM_API_KEY</code>, <code>GEMINI_API_KEY</code></td><td>empty</td><td>Required provider keys</td></tr>
     <tr><td><code>VERTEXAI_PROJECT</code> / <code>_LOCATION</code></td><td>empty / asia-south1</td><td>Optional Vertex AI</td></tr>
     <tr><td><code>STT_MODEL</code> / <code>STT_MODE</code></td><td>saaras:v4 / transcribe</td><td>Modes: <code>transcribe</code>, <code>codemix</code>, <code>translit</code>, <code>verbatim</code></td></tr>
@@ -588,6 +632,8 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
     <tr><td><code>LLM_MODEL</code></td><td>agent-fast</td><td>LiteLLM alias used by the agent</td></tr>
     <tr><td><code>VAD_MIN_SILENCE</code>, <code>ENDPOINTING_*</code>, <code>PREEMPTIVE_GENERATION</code></td><td>0.25, 0.3 / 1.2, true</td><td>Turn-taking (see <a href="#latency">Latency</a>)</td></tr>
     <tr><td><code>NUM_IDLE_PROCESSES</code></td><td>2</td><td>Warm agent processes. Raise this on a production host.</td></tr>
+    <tr><td><code>OUTBOUND_PROXY</code></td><td>empty</td><td>Optional HTTP proxy for provider traffic (Sarvam from the agent, Gemini and others from LiteLLM). Internal services always connect directly.</td></tr>
+    <tr><td><code>AUTO_MIGRATE</code></td><td>true</td><td>Apply database migrations when the API starts</td></tr>
     <tr><td><code>CORS_ORIGINS</code></td><td><code>http://localhost:3000</code></td><td>Origins allowed to call the API (websites embedding the widget)</td></tr>
   </table></div>
   <p>After editing, apply with <code>make up</code>. Restarting just the agent is enough for voice settings: <code>docker compose up -d --force-recreate agent</code>.</p>
@@ -605,7 +651,11 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
 <section id="testing">
   <h2>Testing &amp; benchmarks</h2>
   <p>These scripts run inside the agent image against your real keys. They don't need a microphone.</p>
-  <div class="code"><pre># full scripted call: a fake caller speaks EN → HI → TA, prints replies + per-turn latency
+  <div class="code"><pre># workflow scenarios: a scripted caller completes a whole flow, then the stored rows are checked
+#   support | lead | sales_hi | router_support      (VERBOSE=1 prints a timeline)
+docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/scenario_call.py lead
+
+# full scripted call: a fake caller speaks EN → HI → TA, prints replies + per-turn latency
 docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/e2e_call.py sales
 
 # TTS → STT round-trip for all six languages (accuracy + detection)
@@ -615,6 +665,13 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/sarv
 docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/tts_latency.py
 docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_latency.py</pre></div>
   <p class="muted">Each script call uses your Sarvam and Gemini quota (a few cents).</p>
+  <div class="table-wrap"><table>
+    <tr><th>Scenario</th><th>Checks</th><th>Last result</th></tr>
+    <tr><td><code>support</code></td><td>Problem, then name and phone, then confirm. A support ticket is created and the agent ends the call.</td><td class="status-done">PASS</td></tr>
+    <tr><td><code>lead</code></td><td>Full BANT qualification, score, callback ticket with preferred time</td><td class="status-done">PASS (score 95)</td></tr>
+    <tr><td><code>sales_hi</code></td><td>Hindi pricing question, no price quoted, callback booked in Hindi</td><td class="status-done">PASS</td></tr>
+    <tr><td><code>router_support</code></td><td>Receptionist transfers to support without asking. Phone is confirmed, then a ticket is created.</td><td class="status-done">PASS</td></tr>
+  </table></div>
 </section>
 
 <section id="structure">
@@ -627,14 +684,18 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
 ├── PLAN.md                  decisions + phased roadmap
 ├── docs/guide.html          this guide
 ├── agent/                   Python · LiveKit Agents
-│   ├── main.py              session setup, turn-taking, language switching
+│   ├── main.py              session setup, call record, turn-taking, language switching
+│   ├── workflows.py         router / lead / sales / support agents + tools
+│   ├── api_client.py        HTTP client for the NestJS API
 │   ├── pipeline.py          STT / LLM / TTS provider registries
 │   ├── settings.py          env-driven settings
 │   ├── prompts.py           workflow instructions + voice rules
 │   ├── telemetry.py         per-turn latency + live transcript events
 │   ├── languages.py         supported languages
 │   └── scripts/             e2e call + benchmarks
-├── api/                     NestJS (tokens, health; business logic from Phase 2)
+├── api/                     NestJS + Sequelize
+│   └── src/                 calls/ leads/ tickets/ livekit/ health/
+│       └── database/        models.ts, migrations/, migrator.ts
 ├── web/                     Next.js (/demo, /admin)
 ├── infra/
 │   ├── livekit/livekit.yaml
@@ -669,6 +730,8 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
     <tr><td>LLM returns 429</td><td>Gemini quota or rate limit. Check your AI Studio quota or use Vertex AI.</td></tr>
     <tr><td>Port already in use</td><td>Another app holds one of the published ports. Stop it, or change the host-side port in <code>docker-compose.yml</code>.</td></tr>
     <tr><td><code>.env</code> not writable</td><td>It was edited with <code>sudo</code>. Run <code>sudo chown $(whoami) .env</code>.</td></tr>
+    <tr><td>Containers have no internet (npm or pip hang during build, agent can't reach Sarvam) while the Mac is fine</td><td>Check IPv4: <code>curl -4 -m 8 https://www.google.com</code>. Docker's container network uses IPv4 only. On some networks only IPv6 works (seen on a home router, and with VPN kill switches), and Sarvam has IPv4 addresses only. Fix the network (restart the router, turn off the VPN kill switch, or try another network). For a corporate proxy, set <code>OUTBOUND_PROXY</code>.</td></tr>
+    <tr><td>Agent says it will save or book something, then asks for the number again</td><td>A tool refused the request; see <code>make logs s=agent</code> and search for <code>ToolError</code>. The message says why, e.g. "phone is not a valid number".</td></tr>
     <tr><td>Bot replies in the wrong language</td><td>Check the agent logs for <code>language switch</code> lines. If STT detects correctly but the reply drifts, try <code>LLM_MODEL=agent-smart</code>.</td></tr>
   </table></div>
 </section>
@@ -679,8 +742,8 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
     <tr><th>#</th><th>Phase</th><th>Status</th></tr>
     <tr><td>0</td><td>Docker stack, LiveKit, API, web, agent skeleton</td><td class="status-done">Done</td></tr>
     <tr><td>1</td><td>Voice loop: Sarvam STT/TTS, Gemini via LiteLLM, turn-taking, latency telemetry</td><td class="status-done">Done</td></tr>
-    <tr><td>1b</td><td>Latency: Vertex AI Mumbai benchmark, then the next LLM option</td><td class="status-next">In progress</td></tr>
-    <tr><td>2</td><td>Workflows with tools and handoffs; calls, turns, leads and tickets in Postgres</td><td>Planned</td></tr>
+    <tr><td>1b</td><td>Latency: Vertex AI Mumbai benchmark, then the next LLM option</td><td class="status-next">Waiting on Vertex key</td></tr>
+    <tr><td>2</td><td>Workflows with tools and handoffs; calls, turns, leads and tickets in Postgres (Sequelize)</td><td class="status-done">Done</td></tr>
     <tr><td>3</td><td>Knowledge base / RAG with selectable embedding providers</td><td>Planned</td></tr>
     <tr><td>4</td><td>Admin dashboard: agents, prompts, voices, calls, leads, latency charts</td><td>Planned</td></tr>
     <tr><td>5</td><td>Webhooks, plus Twenty CRM and Chatwoot sync</td><td>Planned</td></tr>
@@ -692,7 +755,7 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
   <p class="muted">Full decisions and details: <code>PLAN.md</code>.</p>
 </section>
 
-<footer>AudioBots starter kit · guide reflects the code as of Phase 1 (Nov 2026).</footer>
+<footer>AudioBots starter kit · guide reflects the code as of Phase 2 (Nov 2026).</footer>
 </main>
 </div>
 

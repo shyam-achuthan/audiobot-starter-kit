@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+import aiohttp
+
 from livekit.agents import llm as lk_llm
 from livekit.agents import stt as lk_stt
 from livekit.agents import tts as lk_tts
@@ -17,12 +19,37 @@ from livekit.plugins import openai, sarvam
 from settings import Settings
 
 
+_provider_session: aiohttp.ClientSession | None = None
+
+
+def provider_http_session(s: Settings) -> aiohttp.ClientSession | None:
+    """Shared HTTP session for cloud providers, routed through OUTBOUND_PROXY if set.
+
+    Returns None without a proxy so plugins use LiveKit's default session.
+    Must be called inside the job's event loop; closed by close_provider_session().
+    """
+    global _provider_session
+    if not s.outbound_proxy:
+        return None
+    if _provider_session is None or _provider_session.closed:
+        _provider_session = aiohttp.ClientSession(proxy=s.outbound_proxy)
+    return _provider_session
+
+
+async def close_provider_session() -> None:
+    global _provider_session
+    if _provider_session is not None and not _provider_session.closed:
+        await _provider_session.close()
+    _provider_session = None
+
+
 def _sarvam_stt(s: Settings) -> lk_stt.STT:
     return sarvam.STT(
         language=s.stt_language,
         model=s.stt_model,
         mode=s.stt_mode,
         flush_signal=s.stt_flush_signal,
+        http_session=provider_http_session(s),
     )
 
 
@@ -31,6 +58,7 @@ def _sarvam_tts(s: Settings) -> lk_tts.TTS:
         model=s.tts_model,
         speaker=s.tts_speaker,
         target_language_code=s.tts_default_language,
+        http_session=provider_http_session(s),
     )
 
 
