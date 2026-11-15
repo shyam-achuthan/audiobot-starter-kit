@@ -262,7 +262,7 @@ make health              # db, livekit, litellm should all be ok</pre></div>
   <div class="table-wrap"><table>
     <tr><th>Key (in <code>.env</code>)</th><th>Used for</th><th>Where to get it</th><th>Needed</th></tr>
     <tr><td><code>SARVAM_API_KEY</code></td><td>Speech-to-text (<code>saaras:v4</code>) and text-to-speech (<code>bulbul:v3</code>)</td><td><a href="https://dashboard.sarvam.ai">dashboard.sarvam.ai</a></td><td>Yes</td></tr>
-    <tr><td><code>GEMINI_API_KEY</code></td><td>Default LLM (Gemini Flash-Lite) through LiteLLM</td><td><a href="https://aistudio.google.com/apikey">aistudio.google.com/apikey</a></td><td>Yes</td></tr>
+    <tr><td><code>GEMINI_API_KEY</code></td><td>Default LLM (Gemini 3.5 Flash) through LiteLLM. <strong>Enable billing</strong> on the key: the free tier allows only 20 requests a day per model</td><td><a href="https://aistudio.google.com/apikey">aistudio.google.com/apikey</a></td><td>Yes</td></tr>
     <tr><td><code>VERTEXAI_PROJECT</code> + key file</td><td>Gemini served from Mumbai (lower latency)</td><td><a href="#vertex">See below</a></td><td>Optional</td></tr>
     <tr><td><code>OPENAI_API_KEY</code></td><td>LLM fallback (<code>agent-fast-fallback</code>)</td><td>platform.openai.com</td><td>Optional</td></tr>
     <tr><td><code>ANTHROPIC_API_KEY</code></td><td><code>agent-claude</code> alias</td><td>console.anthropic.com</td><td>Optional</td></tr>
@@ -399,7 +399,7 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
 
       <rect x="20" y="380" width="430" height="62" rx="10" class="box"/>
       <text x="36" y="405" class="t-title">Next.js web · :3000</text>
-      <text x="36" y="424" class="t-sub">/demo (voice test) · /admin (health now, full admin in Phase 4)</text>
+      <text x="36" y="424" class="t-sub">/demo (voice test) · /admin (setup, knowledge · full admin in Phase 4)</text>
       <path d="M450 411 Q620 470 760 348" class="wire" marker-end="url(#ah)"/>
       <path d="M110 380 V112" class="wire" marker-end="url(#ah)"/>
       <text x="118" y="250" class="t-label">serves page</text>
@@ -562,14 +562,14 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
 
 <section id="workflows">
   <h2>Workflows</h2>
-  <p>Each workflow is its own agent with a role prompt (<code>agent/prompts.py</code>) and tools (<code>agent/workflows.py</code>). Agents share one call record and hand off to each other with the conversation history, so the caller never repeats themselves. None of them quote prices or policies yet; they offer a specialist callback instead. The knowledge base arrives in Phase 3.</p>
+  <p>Each workflow is its own agent with a role prompt (<code>agent/prompts.py</code>) and tools (<code>agent/workflows.py</code>). Agents share one call record and hand off to each other with the conversation history, so the caller never repeats themselves. They quote prices, plans and policies only from the knowledge base (<code>search_knowledge</code>); when the answer isn't there, they offer a specialist callback instead of guessing.</p>
   <div class="table-wrap"><table>
     <tr><th>Agent</th><th>Does</th><th>Tools</th></tr>
     <tr><td><code>router</code> (Receptionist)</td><td>Finds out what the caller wants and transfers straight away, without asking permission</td><td><code>transfer_to_sales</code>, <code>transfer_to_support</code>, <code>transfer_to_lead_qualification</code></td></tr>
     <tr><td><code>lead_qualification</code></td><td>Collects name, need, team size, budget, decision maker, timeline and phone one question at a time, scores the lead 0–100, books a specialist callback</td><td><code>save_lead_details</code>, <code>finish_qualification</code>, <code>transfer_to_sales</code></td></tr>
     <tr><td><code>sales</code></td><td>Understands needs, handles objections, books a specialist callback for pricing, a demo or a proposal</td><td><code>request_callback</code>, <code>save_contact</code>, <code>transfer_to_lead_qualification</code>, <code>transfer_to_support</code></td></tr>
-    <tr><td><code>support</code></td><td>Clarifies the problem, suggests simple fixes, raises a ticket with a priority, looks up existing tickets by number or phone</td><td><code>create_support_ticket</code>, <code>lookup_tickets</code>, <code>transfer_to_sales</code></td></tr>
-    <tr><td>All agents</td><td>Callback from a person on request, then hang up after the goodbye</td><td><code>request_human_callback</code>, <code>end_call</code></td></tr>
+    <tr><td><code>support</code></td><td>Clarifies the problem, suggests simple fixes, raises a ticket with a priority, looks up existing tickets by number or phone</td><td><code>create_support_ticket</code>, <code>lookup_tickets</code>, <code>transfer_to_sales</code></td><td class="num">2.4 s</td></tr>
+    <tr><td>All agents</td><td>Search the knowledge base before answering product questions; callback from a person on request; hang up after the goodbye</td><td><code>search_knowledge</code>, <code>request_human_callback</code>, <code>end_call</code></td></tr>
   </table></div>
   <h3>Guardrails built into the tools</h3>
   <ul>
@@ -704,16 +704,16 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/sarv
 # streaming TTS first-audio latency, STT finalization latency
 docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/tts_latency.py
 docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_latency.py</pre></div>
-  <p class="muted">Each script call uses your Sarvam and Gemini quota. A scenario makes 5–15 LLM requests, so the Gemini free tier (20 requests a day per model) runs out after one or two runs.</p>
+  <p class="muted">Median voice-to-voice is measured by the scripted caller over a phone hotspot. Turns that search the knowledge base take about 1–2 s longer. Each script call uses your Sarvam and Gemini quota. A scenario makes 5–15 LLM requests, so use a key with billing enabled: the Gemini free tier (20 requests a day per model) runs out after one or two runs.</p>
   <div class="table-wrap"><table>
-    <tr><th>Scenario</th><th>Checks</th><th>Last result</th></tr>
+    <tr><th>Scenario</th><th>Checks</th><th>Last result (15 Nov 2026, Gemini 3.5 Flash)</th><th>Median voice-to-voice</th></tr>
     <tr><td><code>support</code></td><td>Problem, then name and phone, then confirm. A support ticket is created and the agent ends the call.</td><td class="status-done">PASS</td></tr>
-    <tr><td><code>lead</code></td><td>Full BANT qualification, score, callback ticket with preferred time</td><td class="status-done">PASS (score 95)</td></tr>
-    <tr><td><code>sales_hi</code></td><td>Hindi pricing question, no price quoted, callback booked in Hindi</td><td class="status-done">PASS</td></tr>
-    <tr><td><code>router_support</code></td><td>Receptionist transfers to support without asking. Phone is confirmed, then a ticket is created.</td><td class="status-done">PASS</td></tr>
-    <tr><td><code>kb_pricing</code></td><td>Quotes "₹1,299 per month plus 18% GST" and the 30-day refund rule from the sample docs</td><td class="status-done">PASS</td></tr>
-    <tr><td><code>kb_hindi_support</code></td><td>Hindi printer problem, answered in Hindi with the documented Bluetooth step</td><td class="status-done">PASS</td></tr>
-    <tr><td><code>kb_unknown</code></td><td>Shopify question that isn't in the docs: defers to a specialist and doesn't invent an answer</td><td class="status-done">PASS</td></tr>
+    <tr><td><code>lead</code></td><td>Full BANT qualification, score, callback ticket with preferred time</td><td class="status-done">PASS (score 95)</td><td class="num">3.1 s</td></tr>
+    <tr><td><code>sales_hi</code></td><td>Hindi pricing question, no price quoted, callback booked in Hindi</td><td class="status-done">PASS</td><td class="num">2.9 s</td></tr>
+    <tr><td><code>router_support</code></td><td>Receptionist transfers to support without asking. Phone is confirmed, then a ticket is created.</td><td class="status-done">PASS</td><td class="num">2.7 s</td></tr>
+    <tr><td><code>kb_pricing</code></td><td>Quotes "₹1,299 per month plus 18% GST" and the 30-day refund rule from the sample docs</td><td class="status-done">PASS</td><td class="num">4.0 s</td></tr>
+    <tr><td><code>kb_hindi_support</code></td><td>Hindi printer problem, answered in Hindi with the documented Bluetooth step</td><td class="status-done">PASS</td><td class="num">5.3 s</td></tr>
+    <tr><td><code>kb_unknown</code></td><td>Shopify question that isn't in the docs: defers to a specialist and doesn't invent an answer</td><td class="status-done">PASS</td><td class="num">3.0 s</td></tr>
   </table></div>
 </section>
 
@@ -771,7 +771,7 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
     <tr><td>"Microphone unavailable: Permission denied"</td><td>Allow the mic for localhost in Chrome site settings. Embedded preview browsers can't use the mic.</td></tr>
     <tr><td>Connected but no audio, or the call drops after changing Wi-Fi</td><td>LiveKit is advertising your old LAN IP. Run <code>make ip</code>.</td></tr>
     <tr><td>LLM test returns 408 / timeout</td><td>The model is "thinking" (e.g. <code>gemini-flash-latest</code>). Use Flash-Lite or disable reasoning in <code>infra/litellm/config.yaml</code>.</td></tr>
-    <tr><td>LLM returns 429</td><td>Gemini quota or rate limit. Check your AI Studio quota or use Vertex AI.</td></tr>
+    <tr><td>LLM returns 429</td><td>Gemini quota or rate limit. Enable billing on the key in AI Studio, or use Vertex AI (see the next rows).</td></tr>
     <tr><td>Port already in use</td><td>Another app holds one of the published ports. Stop it, or change the host-side port in <code>docker-compose.yml</code>.</td></tr>
     <tr><td><code>.env</code> not writable</td><td>It was edited with <code>sudo</code>. Run <code>sudo chown $(whoami) .env</code>.</td></tr>
     <tr><td>Containers have no internet (npm or pip hang during build, agent can't reach Sarvam) while the Mac is fine</td><td>Check IPv4: <code>curl -4 -m 8 https://www.google.com</code>. Docker's container network uses IPv4 only. On some networks only IPv6 works (seen on a home router, and with VPN kill switches), and Sarvam has IPv4 addresses only. Fix the network (restart the router, turn off the VPN kill switch, or try another network). For a corporate proxy, set <code>OUTBOUND_PROXY</code>.</td></tr>
