@@ -2,10 +2,14 @@ import { Logger } from '@nestjs/common';
 import { Sequelize } from 'sequelize-typescript';
 import { SequelizeStorage, Umzug } from 'umzug';
 import * as m0001 from './migrations/0001-init';
+import * as m0002 from './migrations/0002-knowledge';
 
 // Migrations are imported explicitly (no globbing), so they work the same
 // from ts sources and compiled dist/. Append new ones in order.
-const MIGRATIONS = [{ name: '0001-init', ...m0001 }];
+const MIGRATIONS = [
+  { name: '0001-init', ...m0001 },
+  { name: '0002-knowledge', ...m0002 },
+];
 
 export function createMigrator(sequelize: Sequelize) {
   const logger = new Logger('Migrations');

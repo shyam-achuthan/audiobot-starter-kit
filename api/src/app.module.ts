@@ -5,10 +5,14 @@ import { CallsService } from './calls/calls.service';
 import { config } from './config';
 import { MODELS } from './database/models';
 import { HealthController } from './health/health.controller';
+import { EmbeddingsService } from './knowledge/embeddings';
+import { KnowledgeController } from './knowledge/knowledge.controller';
+import { KnowledgeService } from './knowledge/knowledge.service';
 import { LeadsController } from './leads/leads.controller';
 import { LeadsService } from './leads/leads.service';
 import { LivekitController } from './livekit/livekit.controller';
 import { LivekitService } from './livekit/livekit.service';
+import { ProfileController } from './profile/profile.controller';
 import { TicketsController } from './tickets/tickets.controller';
 import { TicketsService } from './tickets/tickets.service';
 
@@ -25,7 +29,10 @@ import { TicketsService } from './tickets/tickets.service';
     }),
     SequelizeModule.forFeature(MODELS),
   ],
-  controllers: [HealthController, LivekitController, CallsController, LeadsController, TicketsController],
-  providers: [LivekitService, CallsService, LeadsService, TicketsService],
+  controllers: [
+    HealthController, LivekitController, CallsController, LeadsController, TicketsController,
+    KnowledgeController, ProfileController,
+  ],
+  providers: [LivekitService, CallsService, LeadsService, TicketsService, KnowledgeService, EmbeddingsService],
 })
 export class AppModule {}

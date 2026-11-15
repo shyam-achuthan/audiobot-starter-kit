@@ -122,4 +122,57 @@ export class Ticket extends Model {
   declare ref: string;
 }
 
-export const MODELS = [Call, CallTurn, Lead, Ticket];
+export const KB_DOC_TYPES = ['file', 'faq', 'url'] as const;
+export const KB_DOC_STATUSES = ['pending', 'processing', 'ready', 'error'] as const;
+
+@Table({ tableName: 'business_profiles', underscored: true })
+export class BusinessProfile extends Model {
+  @Column({ type: DataType.INTEGER, primaryKey: true, defaultValue: 1 }) declare id: number;
+  @Column({ type: DataType.TEXT, allowNull: false }) declare companyName: string;
+  @Column(DataType.TEXT) declare description: string | null;
+  @Column(DataType.TEXT) declare industry: string | null;
+  @Column(DataType.TEXT) declare website: string | null;
+  @Column(DataType.TEXT) declare supportHours: string | null;
+  @Column(DataType.TEXT) declare callbackHours: string | null;
+  @Column(DataType.TEXT) declare extraInstructions: string | null;
+  @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false }) declare setupCompleted: boolean;
+  @CreatedAt declare createdAt: Date;
+  @UpdatedAt declare updatedAt: Date;
+}
+
+@Table({ tableName: 'knowledge_bases', underscored: true })
+export class KnowledgeBase extends Model {
+  @Column({ type: DataType.UUID, primaryKey: true, defaultValue: DataType.UUIDV4 }) declare id: string;
+  @Column({ type: DataType.TEXT, allowNull: false }) declare name: string;
+  @Column(DataType.TEXT) declare description: string | null;
+  @Column({ type: DataType.STRING(64), allowNull: false, defaultValue: 'embed-gemini' }) declare embeddingModel: string;
+  @Column({ type: DataType.INTEGER, allowNull: false, defaultValue: 768 }) declare dimension: number;
+  @Column({ type: DataType.JSONB, allowNull: false }) declare workflows: string[];
+  @CreatedAt declare createdAt: Date;
+  @UpdatedAt declare updatedAt: Date;
+  @HasMany(() => KbDocument) declare documents?: KbDocument[];
+}
+
+@Table({ tableName: 'kb_documents', underscored: true })
+export class KbDocument extends Model {
+  @Column({ type: DataType.UUID, primaryKey: true, defaultValue: DataType.UUIDV4 }) declare id: string;
+  @ForeignKey(() => KnowledgeBase) @Column({ type: DataType.UUID, allowNull: false }) declare kbId: string;
+  @BelongsTo(() => KnowledgeBase) declare kb?: KnowledgeBase;
+  @Column({ type: DataType.STRING(8), allowNull: false }) declare type: string;
+  @Column({ type: DataType.TEXT, allowNull: false }) declare title: string;
+  @Column(DataType.TEXT) declare source: string | null;
+  @Column(DataType.TEXT) declare mime: string | null;
+  @Column(DataType.INTEGER) declare bytes: number | null;
+  @Column(DataType.TEXT) declare question: string | null;
+  @Column(DataType.TEXT) declare answer: string | null;
+  @Column(DataType.TEXT) declare content: string | null;
+  @Column({ type: DataType.STRING(16), allowNull: false, defaultValue: 'pending' }) declare status: string;
+  @Column(DataType.TEXT) declare error: string | null;
+  @Column({ type: DataType.INTEGER, allowNull: false, defaultValue: 0 }) declare chunkCount: number;
+  @CreatedAt declare createdAt: Date;
+  @UpdatedAt declare updatedAt: Date;
+}
+
+// kb_chunks (with the pgvector column) is accessed with raw SQL in KnowledgeService.
+
+export const MODELS = [Call, CallTurn, Lead, Ticket, BusinessProfile, KnowledgeBase, KbDocument];

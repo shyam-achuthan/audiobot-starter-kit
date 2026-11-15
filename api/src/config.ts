@@ -25,6 +25,7 @@ export const config = {
   },
   litellm: {
     url: process.env.LITELLM_URL ?? 'http://litellm:4000',
+    apiKey: process.env.LITELLM_API_KEY ?? '',
   },
 };
 
