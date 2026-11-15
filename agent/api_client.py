@@ -76,6 +76,14 @@ class ApiClient:
         params = {k: v for k, v in {"ref": ref, "phone": phone}.items() if v}
         return await self._req("GET", "/v1/tickets/lookup", params=params)
 
+    # ---- business profile + knowledge ----
+    async def get_profile(self) -> dict:
+        return await self._req("GET", "/v1/profile")
+
+    async def search_knowledge(self, query: str, workflow: str, top_k: int = 4) -> dict:
+        return await self._req("POST", "/v1/knowledge/search",
+                               json={"query": query, "workflow": workflow, "topK": top_k})
+
     async def aclose(self) -> None:
         if self._http and not self._http.closed:
             await self._http.close()

@@ -93,6 +93,10 @@ async def entrypoint(ctx: JobContext) -> None:
         call.call_id = (await api.create_call(ctx.room.name, workflow))["id"]
     except ApiError as e:
         logger.error("could not create call record: %s", e.message)
+    try:
+        call.profile = await api.get_profile()
+    except ApiError as e:
+        logger.warning("could not load business profile, using defaults: %s", e.message)
 
     session: AgentSession[CallData] = AgentSession(
         userdata=call,

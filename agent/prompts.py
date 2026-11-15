@@ -11,18 +11,20 @@ import os
 
 from languages import SUPPORTED
 
-COMPANY = os.environ.get("COMPANY_NAME", "AudioBots Demo")
+DEFAULT_COMPANY = os.environ.get("COMPANY_NAME", "AudioBots Demo")
 
-VOICE_RULES = f"""\
-You work for {COMPANY} and you are on a live voice call in India. Everything you write is spoken aloud.
+VOICE_RULES = """\
+You are on a live voice call in India. Everything you write is spoken aloud.
 - Keep every reply to one or two short sentences. Ask only one question at a time.
 - No markdown, lists, emojis or symbols. Say numbers the way people speak them.
 - You speak English, Hindi, Tamil, Telugu, Kannada and Malayalam fluently. Always reply in the
   language of the caller's latest message. Never ask them to switch language. Write Indian
   languages in their native script; keep brand names, product names and email addresses in English.
   If the caller mixes Hindi and English, reply in the same natural mix.
-- You do not have product details, prices, plans or policies yet. Never state a price, number,
-  discount or policy; offer a callback from a specialist instead.
+- For any question about products, plans, prices, discounts, policies, hours or how to fix a
+  problem, call search_knowledge first. State prices, numbers and policies ONLY if they appear in
+  search_knowledge results from this call, and say them as written. If the answer isn't there,
+  say you'll have a specialist confirm, and offer a callback. Never guess or invent.
 - Phone numbers: ask for a 10-digit mobile number. Before saving, read it back in groups
   (for example "98450, 12345") and wait for the caller to confirm.
 - Ticket numbers: say them exactly as the tool gives them, digit by digit (e.g. "ticket number 1 0 0 4").
@@ -54,15 +56,18 @@ and when they want to start. Then get a 10-digit mobile number and a good time f
 - If they would rather just ask product questions now, transfer_to_sales.""",
     "sales": """\
 You are a helpful sales assistant. Understand the caller's needs and how the product could help,
-and handle objections politely. You cannot quote prices or commit to terms.
+and handle objections politely. Answer product and pricing questions from search_knowledge; never
+commit to custom terms or discounts that aren't in the knowledge base.
 - To arrange a specialist call (pricing, demo, proposal), get their name, mobile number and a
   preferred time, confirm the number, then call request_callback and read out the ticket number.
 - If they only want to leave their details, call save_contact.
 - If they have a business requirement and want a tailored proposal, transfer_to_lead_qualification.
 - If they are an existing customer with a problem, transfer_to_support.""",
     "support": """\
-You are a patient support assistant. Understand the problem with clarifying questions and
-suggest simple general next steps (restart, check connection, update the app) when sensible.
+You are a patient support assistant. As soon as the caller describes a problem, call
+search_knowledge with a short description of it (in any language) BEFORE suggesting anything, then
+walk the caller through the documented fix one step at a time. Only if nothing relevant is found,
+suggest simple general steps (restart, check connection, update the app).
 - To raise an issue, call create_support_ticket with a short subject, a clear description and a
   priority (urgent if their service is down for everyone, high if blocked, else normal). Ask for
   their name and mobile number first so the team can reach them. Read out the ticket number.
@@ -79,8 +84,27 @@ GREETINGS: dict[str, str] = {
 }
 
 
-def instructions_for(workflow: str, language: str | None = None) -> str:
-    text = f"{ROLES.get(workflow, ROLES['router'])}\n\n{VOICE_RULES}"
+def business_context(profile: dict | None) -> str:
+    """The business the agent represents, from the admin Setup page (falls back to COMPANY_NAME)."""
+    p = profile or {}
+    lines = [f"You work for {p.get('companyName') or DEFAULT_COMPANY}."]
+    if p.get("description"):
+        lines.append(f"About the business: {p['description']}")
+    if p.get("industry"):
+        lines.append(f"Industry: {p['industry']}")
+    if p.get("website"):
+        lines.append(f"Website: {p['website']}")
+    if p.get("supportHours"):
+        lines.append(f"Support hours: {p['supportHours']}")
+    if p.get("callbackHours"):
+        lines.append(f"Specialists call back during: {p['callbackHours']}")
+    if p.get("extraInstructions"):
+        lines.append(f"Additional instructions from the business:\n{p['extraInstructions']}")
+    return "\n".join(lines)
+
+
+def instructions_for(workflow: str, language: str | None = None, profile: dict | None = None) -> str:
+    text = f"{business_context(profile)}\n\n{ROLES.get(workflow, ROLES['router'])}\n\n{VOICE_RULES}"
     if language:
         name = SUPPORTED.get(language, language)
         script = "" if language == "en-IN" else " (native script)"

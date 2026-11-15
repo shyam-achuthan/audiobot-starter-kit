@@ -34,6 +34,7 @@ class CallData:
     caller_phone: str | None = None
     agent_path: list[str] = field(default_factory=list)
     tickets: list[str] = field(default_factory=list)
+    profile: dict = field(default_factory=dict)  # business profile from the admin Setup page
 
 
 def _spoken_ref(ref: str) -> str:
@@ -85,7 +86,7 @@ class BaseAgent(Agent):
 
     def __init__(self, call: CallData, *, chat_ctx=None, handoff_summary: str | None = None) -> None:
         super().__init__(
-            instructions=prompts.instructions_for(self.workflow, call.language),
+            instructions=prompts.instructions_for(self.workflow, call.language, call.profile),
             chat_ctx=chat_ctx,
         )
         self.call = call
@@ -106,7 +107,7 @@ class BaseAgent(Agent):
     async def set_language(self, language: str) -> None:
         """Pin the reply language in the system prompt (small models drift otherwise)."""
         self.call.language = language
-        await self.update_instructions(prompts.instructions_for(self.workflow, language))
+        await self.update_instructions(prompts.instructions_for(self.workflow, language, self.call.profile))
 
     def _handoff(self, cls: type[BaseAgent], summary: str) -> BaseAgent:
         logger.info("handoff %s -> %s: %s", self.workflow, cls.workflow, summary)
@@ -143,6 +144,28 @@ class BaseAgent(Agent):
         return ticket["ref"]
 
     # ---- shared tools ----
+    @function_tool()
+    async def search_knowledge(self, context: RunContext[CallData], query: str) -> str:
+        """Search the business's knowledge base (products, plans, prices, policies, hours, troubleshooting).
+
+        Args:
+            query: The caller's question, rephrased as a short search query in any language.
+        """
+        try:
+            data = await self.call.api.search_knowledge(query, self.workflow, top_k=4)
+        except ApiError as e:
+            logger.warning("knowledge search failed: %s", e.message)
+            return "The knowledge base is unavailable right now. Offer a specialist callback instead of guessing."
+        hits = [r for r in data.get("results", []) if r.get("score", 0) >= 0.45]
+        logger.info("knowledge search %r -> %d hit(s)", query, len(hits))
+        if not hits:
+            return ("No relevant information found. Do not guess: tell the caller a specialist will "
+                    "confirm, and offer a callback.")
+        excerpts = "\n\n".join(f"[{i + 1}] {h['content']}" for i, h in enumerate(hits))
+        return ("Answer ONLY from these excerpts, briefly and in the caller's language. Quote prices "
+                "and policies exactly. If they don't answer the question, say a specialist will confirm.\n\n"
+                + excerpts)
+
     @function_tool()
     async def request_human_callback(
         self, context: RunContext[CallData], name: str, phone: str, phone_confirmed: bool,
