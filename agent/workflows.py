@@ -14,9 +14,14 @@ from dataclasses import dataclass, field
 from typing import ClassVar
 
 from livekit.agents import Agent, RunContext, ToolError, function_tool, get_job_context
+from livekit.agents import llm as lk_llm
+from livekit.agents import tts as lk_tts
 
+import agent_config
+import pipeline
 import prompts
 from api_client import ApiClient, ApiError
+from settings import Settings
 
 logger = logging.getLogger("audiobots.workflows")
 
@@ -35,6 +40,31 @@ class CallData:
     agent_path: list[str] = field(default_factory=list)
     tickets: list[str] = field(default_factory=list)
     profile: dict = field(default_factory=dict)  # business profile from the admin Setup page
+    settings: Settings = field(default_factory=Settings.from_env)
+    # Admin overrides per workflow (from /v1/agents), loaded at the start of the call.
+    overrides: dict[str, dict] = field(default_factory=dict)
+    # One LLM per model alias and one TTS per (voice, pace), shared across handoffs.
+    _llms: dict[str, lk_llm.LLM] = field(default_factory=dict)
+    _ttss: dict[tuple[str, float], lk_tts.TTS] = field(default_factory=dict)
+
+    def agent_settings(self, workflow: str) -> agent_config.AgentSettings:
+        return agent_config.resolve(workflow, self.settings, self.overrides.get(workflow))
+
+    def llm_for(self, model: str) -> lk_llm.LLM:
+        if model not in self._llms:
+            self._llms[model] = pipeline.build_llm(self.settings, model)
+        return self._llms[model]
+
+    def tts_for(self, speaker: str, pace: float) -> lk_tts.TTS:
+        key = (speaker, pace)
+        if key not in self._ttss:
+            self._ttss[key] = pipeline.build_tts(
+                self.settings, speaker=speaker, pace=pace, language=self.language)
+        return self._ttss[key]
+
+    def set_tts_language(self, language: str) -> None:
+        for tts in self._ttss.values():
+            pipeline.set_tts_language(tts, language)
 
 
 def _spoken_ref(ref: str) -> str:
@@ -85,29 +115,39 @@ class BaseAgent(Agent):
     workflow: ClassVar[str] = "router"
 
     def __init__(self, call: CallData, *, chat_ctx=None, handoff_summary: str | None = None) -> None:
+        cfg = call.agent_settings(self.workflow)
         super().__init__(
-            instructions=prompts.instructions_for(self.workflow, call.language, call.profile),
+            instructions=prompts.instructions_for(self.workflow, call.language, call.profile, role=cfg.role),
             chat_ctx=chat_ctx,
+            llm=call.llm_for(cfg.llm_model),
+            tts=call.tts_for(cfg.tts_speaker, cfg.tts_pace),
+            turn_handling={
+                "endpointing": {"min_delay": cfg.endpointing_min_delay, "max_delay": cfg.endpointing_max_delay},
+                "interruption": {"enabled": cfg.allow_interruptions},
+            },
         )
         self.call = call
+        self.cfg = cfg
         self.handoff_summary = handoff_summary
 
     async def on_enter(self) -> None:
         self.call.workflow = self.workflow
         if not self.call.agent_path or self.call.agent_path[-1] != self.workflow:
             self.call.agent_path.append(self.workflow)
-        logger.info("agent active: %s (path=%s)", self.workflow, self.call.agent_path)
+        logger.info("agent active: %s (path=%s model=%s voice=%s)", self.workflow, self.call.agent_path,
+                    self.cfg.llm_model, self.cfg.tts_speaker)
         instructions = (
             prompts.handoff_for(self.handoff_summary)
             if self.handoff_summary
-            else prompts.greeting_for(self.workflow)
+            else prompts.greeting_for(self.workflow, self.cfg.greeting)
         )
         self.session.generate_reply(instructions=instructions)
 
     async def set_language(self, language: str) -> None:
         """Pin the reply language in the system prompt (small models drift otherwise)."""
         self.call.language = language
-        await self.update_instructions(prompts.instructions_for(self.workflow, language, self.call.profile))
+        await self.update_instructions(
+            prompts.instructions_for(self.workflow, language, self.call.profile, role=self.cfg.role))
 
     def _handoff(self, cls: type[BaseAgent], summary: str) -> BaseAgent:
         logger.info("handoff %s -> %s: %s", self.workflow, cls.workflow, summary)

@@ -4,8 +4,9 @@ Voice loop:
   mic -> Silero VAD -> Sarvam STT (auto language) -> LiteLLM (Gemini) -> Sarvam TTS -> speaker
 with local turn detection, barge-in and per-turn latency telemetry.
 
-Phase 2: multi-agent workflows (receptionist -> lead qualification / sales / support)
-with tools backed by the NestJS API; every call and turn is stored in Postgres.
+Multi-agent workflows (receptionist -> lead qualification / sales / support) with tools
+backed by the NestJS API; every call and turn is stored in Postgres. Each agent's prompt,
+model, voice and turn timing come from the admin dashboard, loaded at the start of the call.
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from livekit.agents import (
 )
 from livekit.plugins import silero
 
+import agent_config
 import pipeline
 from api_client import ApiClient, ApiError
 from languages import SUPPORTED, TURN_DETECTOR_LANGS, normalize
@@ -44,6 +46,8 @@ def prewarm(proc: JobProcess) -> None:
     proc.userdata["vad"] = silero.VAD.load(
         min_silence_duration=max(0.25, float(os.environ.get("VAD_MIN_SILENCE", "0.25"))),
     )
+    # Let the dashboard show this worker's built-in defaults and voices (retried per call if it fails).
+    proc.userdata["defaults_reported"] = agent_config.report_defaults_sync(Settings.from_env())
 
 
 # Warm processes ready to take a call. Default (one per CPU) is wasteful on a laptop;
@@ -71,24 +75,9 @@ async def entrypoint(ctx: JobContext) -> None:
     workflow = workflow_of(participant.metadata)
     logger.info("call started room=%s workflow=%s", ctx.room.name, workflow)
 
-    try:
-        stt = pipeline.build_stt(settings)
-        llm = pipeline.build_llm(settings)
-        tts = pipeline.build_tts(settings)
-    except ValueError as e:
-        # Typically a missing provider key. Tell the caller's UI instead of silently dying.
-        logger.error("pipeline config error: %s", e)
-        await ctx.room.local_participant.publish_data(
-            json.dumps({"type": "error", "code": "config", "message": str(e)}).encode(),
-            reliable=True,
-            topic="agent",
-        )
-        ctx.shutdown(reason="pipeline config error")
-        return
-
     # ---- call record (the call still works if the API is down; it just isn't stored) ----
     api = ApiClient()
-    call = CallData(api=api, room=ctx.room.name, workflow=workflow)
+    call = CallData(api=api, room=ctx.room.name, workflow=workflow, settings=settings)
     try:
         call.call_id = (await api.create_call(ctx.room.name, workflow))["id"]
     except ApiError as e:
@@ -97,6 +86,40 @@ async def entrypoint(ctx: JobContext) -> None:
         call.profile = await api.get_profile()
     except ApiError as e:
         logger.warning("could not load business profile, using defaults: %s", e.message)
+    try:
+        call.overrides = {a["workflow"]: a.get("overrides") or {} for a in await api.get_agents()}
+    except ApiError as e:
+        logger.warning("could not load agent settings, using built-in defaults: %s", e.message)
+    if not ctx.proc.userdata.get("defaults_reported"):
+        try:
+            await api.report_agent_defaults(agent_config.defaults_payload(settings))
+            ctx.proc.userdata["defaults_reported"] = True
+        except ApiError as e:
+            logger.warning("could not report agent defaults: %s", e.message)
+
+    # The answering agent's settings drive the session; later agents bring their own
+    # model, voice and endpointing (see BaseAgent).
+    start = call.agent_settings(workflow)
+    try:
+        stt = pipeline.build_stt(settings)
+        llm = call.llm_for(start.llm_model)
+        tts = call.tts_for(start.tts_speaker, start.tts_pace)
+    except ValueError as e:
+        # Typically a missing provider key. Tell the caller's UI instead of silently dying.
+        logger.error("pipeline config error: %s", e)
+        await ctx.room.local_participant.publish_data(
+            json.dumps({"type": "error", "code": "config", "message": str(e)}).encode(),
+            reliable=True,
+            topic="agent",
+        )
+        if call.call_id:
+            try:
+                await api.update_call(call.call_id, status="ended")
+            except ApiError:
+                pass
+        await api.aclose()
+        ctx.shutdown(reason="pipeline config error")
+        return
 
     session: AgentSession[CallData] = AgentSession(
         userdata=call,
@@ -114,13 +137,14 @@ async def entrypoint(ctx: JobContext) -> None:
                 unlikely_threshold={code: 0.0 for code in NO_TURN_MODEL_LANGS},
             ),
             "endpointing": {
-                "min_delay": settings.endpointing_min_delay,
-                "max_delay": settings.endpointing_max_delay,
+                "min_delay": start.endpointing_min_delay,
+                "max_delay": start.endpointing_max_delay,
             },
             "interruption": {
-                "enabled": True,
+                "enabled": start.allow_interruptions,
                 "mode": "vad",  # "adaptive" needs LiveKit Cloud
-                "min_duration": settings.interruption_min_duration,
+                # Session-wide in LiveKit: comes from the agent that answers the call.
+                "min_duration": start.interruption_min_duration,
                 "resume_false_interruption": True,
                 "false_interruption_timeout": 1.0,
             },
@@ -154,7 +178,7 @@ async def entrypoint(ctx: JobContext) -> None:
         if ev.is_final and lang and lang != call.language:
             logger.info("language switch %s -> %s", call.language, lang)
             call.language = lang
-            pipeline.set_tts_language(tts, lang)
+            call.set_tts_language(lang)
             agent = session.current_agent
             if isinstance(agent, BaseAgent):
                 telemetry.track(agent.set_language(lang))
@@ -184,7 +208,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
     session.on("close", on_close)
 
-    telemetry.publish({"type": "agent.ready", "workflow": workflow, "callId": call.call_id, "phase": 2})
+    telemetry.publish({"type": "agent.ready", "workflow": workflow, "callId": call.call_id, "phase": 4})
     await session.start(
         agent=AGENTS[workflow](call),
         room=ctx.room,

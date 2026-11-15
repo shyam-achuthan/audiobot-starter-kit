@@ -53,11 +53,13 @@ def _sarvam_stt(s: Settings) -> lk_stt.STT:
     )
 
 
-def _sarvam_tts(s: Settings) -> lk_tts.TTS:
+def _sarvam_tts(s: Settings, speaker: str | None = None, pace: float | None = None,
+                language: str | None = None) -> lk_tts.TTS:
     return sarvam.TTS(
         model=s.tts_model,
-        speaker=s.tts_speaker,
-        target_language_code=s.tts_default_language,
+        speaker=speaker or s.tts_speaker,
+        pace=pace or 1.0,
+        target_language_code=language or s.tts_default_language,
         http_session=provider_http_session(s),
     )
 
@@ -66,7 +68,7 @@ STT_PROVIDERS: dict[str, Callable[[Settings], lk_stt.STT]] = {
     "sarvam": _sarvam_stt,
 }
 
-TTS_PROVIDERS: dict[str, Callable[[Settings], lk_tts.TTS]] = {
+TTS_PROVIDERS: dict[str, Callable[..., lk_tts.TTS]] = {
     "sarvam": _sarvam_tts,
 }
 
@@ -82,8 +84,9 @@ def build_stt(s: Settings) -> lk_stt.STT:
     return _pick(STT_PROVIDERS, s.stt_provider, "STT")(s)
 
 
-def build_tts(s: Settings) -> lk_tts.TTS:
-    return _pick(TTS_PROVIDERS, s.tts_provider, "TTS")(s)
+def build_tts(s: Settings, *, speaker: str | None = None, pace: float | None = None,
+              language: str | None = None) -> lk_tts.TTS:
+    return _pick(TTS_PROVIDERS, s.tts_provider, "TTS")(s, speaker=speaker, pace=pace, language=language)
 
 
 def build_llm(s: Settings, model: str | None = None) -> lk_llm.LLM:

@@ -2,7 +2,8 @@
 
 Each agent = role + shared voice rules (+ the caller's current language).
 Tool usage guidance lives here so behaviour can be tuned without code changes.
-Phase 4 moves these into the admin dashboard.
+These are the built-in defaults; admins can override the role and greeting per agent in the
+dashboard (see agent_config.py).
 """
 
 from __future__ import annotations
@@ -103,8 +104,10 @@ def business_context(profile: dict | None) -> str:
     return "\n".join(lines)
 
 
-def instructions_for(workflow: str, language: str | None = None, profile: dict | None = None) -> str:
-    text = f"{business_context(profile)}\n\n{ROLES.get(workflow, ROLES['router'])}\n\n{VOICE_RULES}"
+def instructions_for(workflow: str, language: str | None = None, profile: dict | None = None,
+                     role: str | None = None) -> str:
+    role = role or ROLES.get(workflow, ROLES["router"])
+    text = f"{business_context(profile)}\n\n{role}\n\n{VOICE_RULES}"
     if language:
         name = SUPPORTED.get(language, language)
         script = "" if language == "en-IN" else " (native script)"
@@ -115,8 +118,8 @@ def instructions_for(workflow: str, language: str | None = None, profile: dict |
     return text
 
 
-def greeting_for(workflow: str) -> str:
-    return GREETINGS.get(workflow, GREETINGS["router"])
+def greeting_for(workflow: str, override: str | None = None) -> str:
+    return override or GREETINGS.get(workflow, GREETINGS["router"])
 
 
 def handoff_for(summary: str) -> str:

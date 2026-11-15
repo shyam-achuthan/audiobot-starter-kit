@@ -80,6 +80,13 @@ class ApiClient:
     async def get_profile(self) -> dict:
         return await self._req("GET", "/v1/profile")
 
+    # ---- per-agent settings from the admin dashboard ----
+    async def get_agents(self) -> list[dict]:
+        return await self._req("GET", "/v1/agents")
+
+    async def report_agent_defaults(self, payload: dict) -> dict:
+        return await self._req("PUT", "/v1/agents/defaults", json=payload)
+
     async def search_knowledge(self, query: str, workflow: str, top_k: int = 4) -> dict:
         return await self._req("POST", "/v1/knowledge/search",
                                json={"query": query, "workflow": workflow, "topK": top_k})

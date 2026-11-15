@@ -70,8 +70,8 @@ export class AgentsService {
     const row = (await this.configs.findByPk(workflow))!;
     const next: Record<string, unknown> = { ...current.overrides };
     for (const key of OVERRIDE_KEYS) {
-      if (!(key in dto)) continue;
       let v = dto[key] as unknown;
+      if (v === undefined) continue; // not sent (DTO class fields exist even when absent)
       if (typeof v === 'string') v = v.trim();
       if (v === null || v === '') delete next[key];
       else next[key] = v;
