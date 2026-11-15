@@ -49,6 +49,20 @@ export const config = {
     url: process.env.LITELLM_URL ?? 'http://litellm:4000',
     apiKey: process.env.LITELLM_API_KEY ?? '',
   },
+  // Call recordings (Phase 6): LiveKit Egress uploads to this bucket; the API streams them back.
+  recordings: {
+    // RECORDING=false turns recording off everywhere, whatever the agents' consent setting.
+    enabled: (process.env.RECORDING ?? 'true') !== 'false',
+    s3Endpoint: process.env.S3_ENDPOINT ?? 'http://rustfs:9000',
+    bucket: process.env.S3_BUCKET_RECORDINGS ?? 'recordings',
+    accessKey: process.env.S3_ACCESS_KEY ?? '',
+    secretKey: process.env.S3_SECRET_KEY ?? '',
+  },
+  // Langfuse (Phase 6): only used to build "open trace" links on the call page.
+  langfuse: {
+    publicUrl: (process.env.LANGFUSE_PUBLIC_URL ?? '').replace(/\/$/, ''),
+    projectId: process.env.LANGFUSE_PROJECT_ID ?? 'audiobots-calls',
+  },
 };
 
 export const WORKFLOWS = ['router', 'lead_qualification', 'sales', 'support'] as const;

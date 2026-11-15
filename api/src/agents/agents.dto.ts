@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import {
-  IsArray, IsBoolean, IsNumber, IsObject, IsOptional, IsString, Max, MaxLength, Min, ValidateNested,
+  IsArray, IsBoolean, IsIn, IsNumber, IsObject, IsOptional, IsString, Max, MaxLength, Min, ValidateNested,
 } from 'class-validator';
 
 /**
@@ -17,11 +17,14 @@ export class AgentOverridesDto {
   @IsOptional() @IsNumber() @Min(0.3) @Max(6) endpointingMaxDelay?: number | null;
   @IsOptional() @IsBoolean() allowInterruptions?: boolean | null;
   @IsOptional() @IsNumber() @Min(0.1) @Max(2) interruptionMinDuration?: number | null;
+  /** off = never record; notice = record and tell the caller they can opt out; ask = record only after a yes. */
+  @IsOptional() @IsIn(['off', 'notice', 'ask']) recordingConsent?: 'off' | 'notice' | 'ask' | null;
 }
 
 export const OVERRIDE_KEYS = [
   'role', 'greeting', 'llmModel', 'ttsSpeaker', 'ttsPace',
   'endpointingMinDelay', 'endpointingMaxDelay', 'allowInterruptions', 'interruptionMinDuration',
+  'recordingConsent',
 ] as const;
 
 export class SpeakerDto {

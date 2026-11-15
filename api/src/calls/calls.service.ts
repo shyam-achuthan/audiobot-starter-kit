@@ -6,6 +6,7 @@ import { Call, CallTurn, Lead, Ticket } from '../database/models';
 import { and, dateRange, paging, search } from '../common/list-query';
 import { EventsService } from '../integrations/events.service';
 import { callData } from '../integrations/payloads';
+import { RecordingsService } from '../recordings/recordings.service';
 import { CreateCallDto, CreateTurnDto, ListCallsQuery, UpdateCallDto } from './calls.dto';
 
 function median(xs: number[]): number | null {
@@ -14,13 +15,13 @@ function median(xs: number[]): number | null {
   const m = Math.floor(s.length / 2);
   return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2);
 }
-
 @Injectable()
 export class CallsService {
   constructor(
     @InjectModel(Call) private readonly calls: typeof Call,
     @InjectModel(CallTurn) private readonly turns: typeof CallTurn,
     private readonly events: EventsService,
+    private readonly recordings: RecordingsService,
   ) {}
 
   async create(dto: CreateCallDto) {
@@ -95,11 +96,13 @@ export class CallsService {
       patch.turnCount = rows.length;
       patch.medianE2eMs = median(rows.map((r) => r.e2eMs).filter((x): x is number => x != null));
       if (!call.outcome && !dto.outcome) patch.outcome = rows.length ? 'info_only' : 'abandoned';
-      return this.events.tx(async (t) => {
+      const ended = await this.events.tx(async (t) => {
         await call.update(patch, { transaction: t });
         await this.events.emit('call.ended', `call:${call.id}`, callData(call, rows), t);
         return call;
       });
+      void this.recordings.finish(ended); // stop egress now so the file is ready sooner
+      return ended;
     }
     return call.update(patch);
   }

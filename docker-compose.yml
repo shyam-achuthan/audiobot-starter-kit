@@ -138,6 +138,14 @@ services:
       CHATWOOT_ACCOUNT_ID: ${CHATWOOT_ACCOUNT_ID:-}
       CHATWOOT_INBOX_ID: ${CHATWOOT_INBOX_ID:-}
       CHATWOOT_WEBHOOK_TOKEN: ${CHATWOOT_WEBHOOK_TOKEN:-}
+      # Recording + observability (Phase 6)
+      RECORDING: ${RECORDING:-true}
+      S3_ENDPOINT: http://rustfs:9000
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_BUCKET_RECORDINGS: ${S3_BUCKET_RECORDINGS}
+      LANGFUSE_PUBLIC_URL: ${LANGFUSE_PUBLIC_URL:-}
+      LANGFUSE_PROJECT_ID: ${LANGFUSE_PROJECT_ID:-audiobots-calls}
     ports:
       - "4000:4000"
     depends_on:

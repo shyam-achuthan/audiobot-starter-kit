@@ -19,6 +19,13 @@ export const TICKET_TYPES = ['support', 'callback'] as const;
 export const TICKET_PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const;
 export const TICKET_STATUSES = ['open', 'in_progress', 'resolved', 'closed'] as const;
 
+export const RECORDING_STATUSES = [
+  'none', 'recording', 'processing', 'ready', 'declined', 'failed', 'unavailable', 'deleted', 'expired',
+] as const;
+export type RecordingStatus = (typeof RECORDING_STATUSES)[number];
+export const RECORDING_CONSENTS = ['off', 'notice', 'ask'] as const;
+export type RecordingConsent = (typeof RECORDING_CONSENTS)[number];
+
 @Table({ tableName: 'calls', underscored: true })
 export class Call extends Model {
   @Column({ type: DataType.UUID, primaryKey: true, defaultValue: DataType.UUIDV4 })
@@ -39,6 +46,16 @@ export class Call extends Model {
   @Column({ type: DataType.DATE, allowNull: false, defaultValue: DataType.NOW }) declare startedAt: Date;
   @Column(DataType.DATE) declare endedAt: Date | null;
   @Column({ type: DataType.JSONB, allowNull: false, defaultValue: {} }) declare metadata: Record<string, unknown>;
+  // Recording (Phase 6); see RECORDING_STATUSES.
+  @Column({ type: DataType.STRING(16), allowNull: false, defaultValue: 'none' }) declare recordingStatus: RecordingStatus;
+  @Column(DataType.STRING(8)) declare recordingConsent: RecordingConsent | null;
+  @Column(DataType.TEXT) declare egressId: string | null;
+  @Column(DataType.TEXT) declare recordingKey: string | null;
+  @Column(DataType.DATE) declare recordingStartedAt: Date | null;
+  @Column(DataType.INTEGER) declare recordingDurationMs: number | null;
+  @Column(DataType.BIGINT) declare recordingBytes: string | null;
+  @Column(DataType.TEXT) declare recordingError: string | null;
+  @Column(DataType.DATE) declare transcriptPurgedAt: Date | null;
   @CreatedAt declare createdAt: Date;
   @UpdatedAt declare updatedAt: Date;
 
@@ -140,6 +157,9 @@ export class BusinessProfile extends Model {
   @Column(DataType.TEXT) declare callbackHours: string | null;
   @Column(DataType.TEXT) declare extraInstructions: string | null;
   @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false }) declare setupCompleted: boolean;
+  // Retention in days; null = keep forever.
+  @Column(DataType.INTEGER) declare recordingRetentionDays: number | null;
+  @Column(DataType.INTEGER) declare transcriptRetentionDays: number | null;
   @CreatedAt declare createdAt: Date;
   @UpdatedAt declare updatedAt: Date;
 }

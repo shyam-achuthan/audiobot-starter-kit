@@ -5,6 +5,7 @@ import * as m0001 from './migrations/0001-init';
 import * as m0002 from './migrations/0002-knowledge';
 import * as m0003 from './migrations/0003-admin';
 import * as m0004 from './migrations/0004-integrations';
+import * as m0005 from './migrations/0005-recordings';
 
 // Migrations are imported explicitly (no globbing), so they work the same
 // from ts sources and compiled dist/. Append new ones in order.
@@ -13,6 +14,7 @@ const MIGRATIONS = [
   { name: '0002-knowledge', ...m0002 },
   { name: '0003-admin', ...m0003 },
   { name: '0004-integrations', ...m0004 },
+  { name: '0005-recordings', ...m0005 },
 ];
 
 export function createMigrator(sequelize: Sequelize) {

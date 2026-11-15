@@ -28,6 +28,8 @@ import { DeliveryWorker } from './integrations/delivery.worker';
 import { EventsService } from './integrations/events.service';
 import { ChatwootInboundController, IntegrationsController } from './integrations/integrations.controller';
 import { IntegrationsService } from './integrations/integrations.service';
+import { RecordingsController, RetentionController } from './recordings/recordings.controller';
+import { RecordingsService } from './recordings/recordings.service';
 
 @Module({
   imports: [
@@ -46,8 +48,10 @@ import { IntegrationsService } from './integrations/integrations.service';
     HealthController, LivekitController, CallsController, LeadsController, TicketsController,
     KnowledgeController, ProfileController, AuthController, AdminUsersController,
     AgentsController, StatsController, IntegrationsController, ChatwootInboundController,
+    RecordingsController, RetentionController,
   ],
   providers: [AuthService, ApiAuthGuard, AgentsService, LivekitService, CallsService, LeadsService, TicketsService, KnowledgeService, EmbeddingsService,
-    EventsService, DeliveryWorker, ConnectorRegistry, TwentyConnector, ChatwootConnector, IntegrationsService],
+    EventsService, DeliveryWorker, ConnectorRegistry, TwentyConnector, ChatwootConnector, IntegrationsService,
+    RecordingsService],
 })
 export class AppModule {}
