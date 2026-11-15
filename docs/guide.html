@@ -185,6 +185,7 @@ footer { color: var(--faint); font-size: .85rem; border-top: 1px solid var(--bor
     <li><a href="#setup-knowledge">Setup &amp; knowledge</a></li>
     <li><a href="#dashboard">Admin dashboard</a></li>
     <li><a href="#integrations">Integrations</a></li>
+    <li><a href="#recording">Recording &amp; tracing</a></li>
     <li><a href="#demo">Demo page</a></li>
     <li><a href="#workflows">Workflows</a></li>
     <li><a href="#data-api">Data &amp; API</a></li>
@@ -223,8 +224,9 @@ footer { color: var(--faint); font-size: .85rem; border-top: 1px solid var(--bor
     <div class="card"><h3>Knowledge base</h3><p>Agents answer from your documents, FAQs and web pages, in any supported language, and quote prices only from them.</p></div>
     <div class="card"><h3>Visual setup</h3><p>Business profile and knowledge are managed on admin pages, not in config files.</p></div>
     <div class="card"><h3>CRM &amp; webhooks</h3><p>Leads appear in Twenty CRM and tickets in Chatwoot automatically. Any other system can receive signed webhooks, with retries.</p></div>
+    <div class="card"><h3>Recording &amp; tracing</h3><p>Calls are recorded with the caller's consent (set per agent) and play back next to the transcript. Every LLM request is traced in Langfuse.</p></div>
   </div>
-  <div class="callout warn"><strong>Status:</strong> Phases 0–5 are done: the stack, the voice loop, workflows with tools and storage, the knowledge base with visual product setup, the admin dashboard with sign-in and per-agent settings, and integrations (webhooks, Twenty CRM, Chatwoot). Recording and SIP come in later phases. See the <a href="#roadmap">roadmap</a>.</div>
+  <div class="callout warn"><strong>Status:</strong> Phases 0–6 are done: the stack, the voice loop, workflows with tools and storage, the knowledge base with visual product setup, the admin dashboard with sign-in and per-agent settings, integrations (webhooks, Twenty CRM, Chatwoot), and call recording with Langfuse tracing. SIP and the website widget come next. See the <a href="#roadmap">roadmap</a>.</div>
 </section>
 
 <section id="quickstart">
@@ -563,11 +565,11 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
   <div class="table-wrap"><table>
     <tr><th>Page</th><th>What you can do</th></tr>
     <tr><td><strong>Overview</strong></td><td>Calls, leads, open tickets, callbacks to make and median reply time for the last 7, 14 or 30 days. Charts: calls per day, reply time (median and p95) per day, where reply time goes (end of turn, STT, LLM, TTS), call outcomes, calls by agent and language. Every chart has hover details and a table view.</td></tr>
-    <tr><td><strong>Calls</strong></td><td>Search by caller name or phone, filter by outcome, agent or status. A call page shows the full transcript, the agents it passed through, linked lead and tickets, and latency for every turn (replies over 3 s are highlighted). Live calls refresh every few seconds.</td></tr>
+    <tr><td><strong>Calls</strong></td><td>Search by caller name or phone, filter by outcome, agent or status. A call page shows the full transcript, the agents it passed through, linked lead and tickets, latency for every turn (replies over 3 s are highlighted), the recording with a player, and a link to the call's LLM trace in Langfuse. Live calls refresh every few seconds.</td></tr>
     <tr><td><strong>Leads</strong></td><td>Search and filter by status or score (hot = 70+). Open a lead to see everything collected on the call, change its status and add notes.</td></tr>
     <tr><td><strong>Tickets</strong></td><td>Open and in-progress tickets by default. Change status inline, filter by type (support or callback) and priority, search by ticket number, subject, name or phone. A ticket page lets you edit the description, status and priority.</td></tr>
     <tr><td><strong>Agents</strong></td><td>Per-agent settings, described below.</td></tr>
-    <tr><td><strong>Knowledge</strong>, <strong>Setup</strong></td><td>See <a href="#setup-knowledge">Setup &amp; knowledge</a>.</td></tr>
+    <tr><td><strong>Knowledge</strong>, <strong>Setup</strong></td><td>See <a href="#setup-knowledge">Setup &amp; knowledge</a>. Setup also holds <em>Data retention</em> for recordings and transcripts (see <a href="#recording">Recording &amp; tracing</a>).</td></tr>
     <tr><td><strong>Integrations</strong> (owners only)</td><td>Twenty CRM and Chatwoot status, webhook endpoints and the delivery log. See <a href="#integrations">Integrations</a>.</td></tr>
     <tr><td><strong>Users</strong> (owners only)</td><td>Add admins or owners, change roles, set a new password for someone, disable or delete accounts. At least one active owner always remains.</td></tr>
   </table></div>
@@ -635,6 +637,47 @@ app.post("/webhooks/audiobots", express.raw({ type: "application/json" }), (req,
 });</pre></div>
 </section>
 
+<section id="recording">
+  <h2>Recording &amp; tracing</h2>
+  <p>Calls can be recorded, and every LLM request can be traced in Langfuse. Both are optional Docker profiles, so the core stack stays light.</p>
+  <h3>Call recordings</h3>
+  <div class="code"><pre>make up-rec      # core stack + LiveKit Egress (the recorder)</pre></div>
+  <ul>
+    <li>Each recorded call is saved as one small audio file (OGG/Opus, both sides mixed, about 0.5 MB a minute) in RustFS, the bundled S3 store, under <code>recordings/calls/&lt;year&gt;/&lt;month&gt;/&lt;call id&gt;.ogg</code>.</li>
+    <li>The call page has a player next to the transcript. Owners can delete a recording there.</li>
+    <li>Files are only reachable through the API by a signed-in admin. Nothing is public.</li>
+  </ul>
+  <h3>Consent (set per agent)</h3>
+  <p>Under <strong>Admin → Agents</strong>, each agent has a <em>Recording consent</em> setting. The agent that answers the call decides for the whole call.</p>
+  <div class="table-wrap"><table>
+    <tr><th>Setting</th><th>What the caller hears</th><th>What is recorded</th></tr>
+    <tr><td><strong>Tell the caller, record unless they object</strong> (default)</td><td>After the greeting: the call is recorded for quality, and they can say if they'd prefer it not to be.</td><td>Recording starts as the call begins. If the caller objects at any point, it stops and the file is deleted.</td></tr>
+    <tr><td><strong>Ask first</strong></td><td>After the greeting: "Is it okay to record this call?"</td><td>Nothing until the caller says yes.</td></tr>
+    <tr><td><strong>Don't record</strong></td><td>Nothing about recording.</td><td>Nothing.</td></tr>
+  </table></div>
+  <ul>
+    <li>The agent only says the call is recorded if the recorder really started. If the recording profile isn't running, the call page shows <em>Recording was not available</em> and the caller hears nothing about it.</li>
+    <li><code>RECORDING=false</code> in <code>.env</code> turns recording off everywhere, whatever the agents' settings. <code>RECORDING_CONSENT</code> sets the built-in default (<code>notice</code>, <code>ask</code> or <code>off</code>) for agents you haven't changed.</li>
+    <li>India's DPDP Act expects you to say when a call is recorded and why. Both recording modes do that at the start of the call.</li>
+  </ul>
+  <h3>Retention</h3>
+  <p>Set it under <strong>Admin → Setup → Data retention</strong> (owners only). By default recordings and transcripts are kept forever.</p>
+  <ul>
+    <li><strong>Keep call recordings (days)</strong>: older recording files are deleted. The call page then says the recording was removed by the retention policy.</li>
+    <li><strong>Keep transcript text (days)</strong>: older transcript text is blanked. Call details (time, outcome, agents, latency), leads and tickets are kept.</li>
+    <li>The cleanup runs every hour, and right away when you shorten a period.</li>
+  </ul>
+  <h3>LLM tracing (Langfuse)</h3>
+  <div class="code"><pre>make up-obs      # core stack + Langfuse at localhost:3040</pre></div>
+  <ul>
+    <li>LiteLLM sends every LLM request to the self-hosted Langfuse over OpenTelemetry: the prompt, tools, reply, model, tokens and timing.</li>
+    <li>The agent tags requests with the call ID, so each call is one Langfuse <em>session</em> and each agent (router, sales, …) is named. The call page links to it with <em>Open LLM trace in Langfuse</em>.</li>
+    <li>Langfuse is set up automatically: an <em>AudioBots</em> organisation, a <em>Voice calls</em> project, API keys, and a login (<code>LANGFUSE_ADMIN_EMAIL</code> / <code>LANGFUSE_ADMIN_PASSWORD</code> in <code>.env</code>). Sign-up is off.</li>
+    <li>It reuses the shared Postgres, Redis and RustFS, and adds ClickHouse. It needs about 2 GB of RAM.</li>
+    <li>Without the profile running, LiteLLM keeps working; traces are just dropped.</li>
+  </ul>
+</section>
+
 <section id="demo">
   <h2>Demo page</h2>
   <p><a href="http://localhost:3000/demo">localhost:3000/demo</a> is a test console for the voice agent.</p>
@@ -677,7 +720,7 @@ app.post("/webhooks/audiobots", express.raw({ type: "application/json" }), (req,
     <tr><td><code>call_turns</code></td><td>Every turn: agent, language, caller text, agent text, interrupted flag, and latency per stage (end of turn, STT, LLM, TTS, total)</td></tr>
     <tr><td><code>leads</code></td><td>Name, phone (+91…), email, company, need, team size, budget, authority, timeline, score, status (new / qualified / unqualified / callback), preferred callback time, IDs of the synced Twenty records</td></tr>
     <tr><td><code>tickets</code></td><td>Support issues and callback requests: number (TKT-1001 upwards), type, subject, description, priority, status, contact, preferred callback time, ID of the Chatwoot conversation</td></tr>
-    <tr><td><code>business_profiles</code></td><td>Single row edited on the Setup page: name, description, industry, website, hours, extra instructions, setup completed</td></tr>
+    <tr><td><code>business_profiles</code></td><td>Single row edited on the Setup page: name, description, industry, website, hours, extra instructions, setup completed, and recording/transcript retention in days (empty = forever)</td></tr>
     <tr><td><code>knowledge_bases</code></td><td>Name, embedding model, vector size, which agents may use it</td></tr>
     <tr><td><code>kb_documents</code></td><td>Sources (file, FAQ, URL) with extracted text, status, error and chunk count</td></tr>
     <tr><td><code>kb_chunks</code></td><td>Text chunks with their pgvector embedding (HNSW-indexed for cosine search)</td></tr>
@@ -693,7 +736,10 @@ app.post("/webhooks/audiobots", express.raw({ type: "application/json" }), (req,
     <tr><td><code>POST /v1/livekit/token</code></td><td>Public. Room and token for a browser call, with <code>{"workflow": "router|sales|support|lead_qualification"}</code></td></tr>
     <tr><td><code>POST /v1/calls</code>, <code>PATCH /v1/calls/:id</code></td><td>Create a call, update it, or end it (<code>{"status":"ended"}</code> computes turns, median latency and outcome)</td></tr>
     <tr><td><code>POST /v1/calls/:id/turns</code></td><td>Store one turn with its latency</td></tr>
-    <tr><td><code>GET /v1/calls</code>, <code>GET /v1/calls/:id</code></td><td>List calls, or one call with its turns, leads and tickets</td></tr>
+    <tr><td><code>GET /v1/calls</code>, <code>GET /v1/calls/:id</code></td><td>List calls, or one call with its turns, leads, tickets, <code>recording</code> summary and Langfuse <code>traceUrl</code></td></tr>
+    <tr><td><code>POST /v1/calls/:id/recording</code></td><td>Agent only: <code>{"action":"start"|"stop"|"discard","consent":"notice"|"ask"}</code>. <code>discard</code> stops recording and deletes the file</td></tr>
+    <tr><td><code>GET /v1/calls/:id/recording/audio</code></td><td>Streams the recording (OGG/Opus, Range requests supported). <code>DELETE /v1/calls/:id/recording</code> deletes it (owners)</td></tr>
+    <tr><td><code>GET|PUT /v1/settings/retention</code></td><td><code>{"recordingRetentionDays", "transcriptRetentionDays"}</code>, days or <code>null</code> for forever. Changing it needs an owner</td></tr>
     <tr><td><code>POST /v1/leads</code>, <code>PATCH /v1/leads/:id</code>, <code>GET /v1/leads[/:id]</code></td><td>Create or partially update leads (empty fields never overwrite saved ones)</td></tr>
     <tr><td><code>POST /v1/tickets</code>, <code>PATCH /v1/tickets/:ref</code>, <code>GET /v1/tickets[/:ref]</code></td><td>Tickets. <code>:ref</code> accepts <code>TKT-1004</code>, <code>1004</code> or a UUID</td></tr>
     <tr><td><code>GET /v1/tickets/lookup?ref=…|phone=…</code></td><td>Voice lookup: by ticket number, or the caller's latest three tickets by phone</td></tr>
@@ -733,6 +779,8 @@ curl -s localhost:4000/v1/tickets/1004  -H "Authorization: Bearer $T"</pre></div
     <tr><td><code>redis</code></td><td>internal</td><td>LiveKit coordination</td></tr>
     <tr><td><code>twenty-server</code>, <code>twenty-worker</code></td><td><a href="http://localhost:3020">localhost:3020</a> (<code>crm</code> profile)</td><td>Twenty CRM, for lead sync</td></tr>
     <tr><td><code>chatwoot-web</code>, <code>chatwoot-sidekiq</code></td><td><a href="http://localhost:3030">localhost:3030</a> (<code>crm</code> profile)</td><td>Chatwoot helpdesk, for ticket sync. <code>chatwoot-migrate</code> prepares its database and exits</td></tr>
+    <tr><td><code>egress</code></td><td>internal (<code>recording</code> profile)</td><td>LiveKit Egress: records consented calls into RustFS</td></tr>
+    <tr><td><code>langfuse-web</code>, <code>langfuse-worker</code>, <code>clickhouse</code></td><td><a href="http://localhost:3040">localhost:3040</a> (<code>observability</code> profile)</td><td>Langfuse LLM tracing; ClickHouse stores the traces</td></tr>
     <tr><td><code>rustfs</code></td><td><a href="http://localhost:9001">localhost:9001</a> (console), 9000 (S3)</td><td>S3-compatible storage with the <code>recordings</code> and <code>langfuse</code> buckets</td></tr>
   </table></div>
   <p class="muted">Postgres, LiteLLM, RustFS, Twenty and Chatwoot are bound to <code>127.0.0.1</code> only, so they aren't reachable from your network.</p>
@@ -746,6 +794,8 @@ curl -s localhost:4000/v1/tickets/1004  -H "Authorization: Bearer $T"</pre></div
     <tr><td><code>make up</code></td><td>Create or refresh <code>.env</code>, build, start the core stack</td></tr>
     <tr><td><code>make up-crm</code></td><td>Core stack plus the local Twenty CRM and Chatwoot</td></tr>
     <tr><td><code>make crm-setup</code></td><td>Connect Chatwoot (automatic) and Twenty (asks for its API key)</td></tr>
+    <tr><td><code>make up-rec</code></td><td>Core stack plus the call recorder (LiveKit Egress)</td></tr>
+    <tr><td><code>make up-obs</code></td><td>Core stack plus Langfuse LLM tracing (localhost:3040)</td></tr>
     <tr><td><code>make ps</code></td><td>Service status and health</td></tr>
     <tr><td><code>make health</code></td><td>API readiness JSON (db, livekit, litellm)</td></tr>
     <tr><td><code>make logs s=agent</code></td><td>Follow one service's logs</td></tr>
@@ -786,6 +836,11 @@ curl -s localhost:4000/v1/tickets/1004  -H "Authorization: Bearer $T"</pre></div
     <tr><td><code>CHATWOOT_WEBHOOK_TOKEN</code></td><td><em>generated</em></td><td>Secret in the URL Chatwoot calls back with status changes</td></tr>
     <tr><td><code>TWENTY_APP_SECRET</code>, <code>CHATWOOT_SECRET_KEY_BASE</code></td><td><em>generated</em></td><td>Secrets of the bundled apps</td></tr>
     <tr><td><code>PUBLIC_WEB_URL</code></td><td><code>http://localhost:3000</code></td><td>Dashboard address used in links inside CRM notes and webhook payloads</td></tr>
+    <tr><td><code>RECORDING</code></td><td>true</td><td><code>false</code> turns call recording off everywhere</td></tr>
+    <tr><td><code>RECORDING_CONSENT</code></td><td>notice</td><td>Built-in consent mode for agents without an override: <code>notice</code>, <code>ask</code> or <code>off</code></td></tr>
+    <tr><td><code>LANGFUSE_PUBLIC_URL</code></td><td><code>http://localhost:3040</code></td><td>Langfuse address used for the "Open LLM trace" link. Leave empty to hide the link</td></tr>
+    <tr><td><code>LANGFUSE_ADMIN_EMAIL</code> / <code>LANGFUSE_ADMIN_PASSWORD</code></td><td>admin@example.com / <em>generated</em></td><td>The Langfuse login created on first start</td></tr>
+    <tr><td><code>LANGFUSE_PUBLIC_KEY</code>, <code>LANGFUSE_SECRET_KEY</code>, <code>LANGFUSE_SALT</code>, <code>LANGFUSE_ENCRYPTION_KEY</code>, <code>LANGFUSE_NEXTAUTH_SECRET</code>, <code>CLICKHOUSE_PASSWORD</code></td><td><em>generated</em></td><td>Langfuse project keys (LiteLLM uses them to send traces) and internal secrets</td></tr>
     <tr><td><code>EVENT_RETENTION_DAYS</code></td><td>30</td><td>How long events and the delivery log are kept</td></tr>
     <tr><td><code>DASHBOARD_TIMEZONE</code></td><td>Asia/Kolkata</td><td>Day boundaries for dashboard charts</td></tr>
     <tr><td><code>AUTO_MIGRATE</code></td><td>true</td><td>Apply database migrations when the API starts</td></tr>
@@ -876,7 +931,9 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
     <li>The dashboard needs an email + password sign-in. The session token sits in an httpOnly, SameSite=Lax cookie (Secure over HTTPS), and only its SHA-256 is stored. The browser never sees <code>AGENT_API_TOKEN</code>. The public <code>/backend</code> proxy only serves the call token and auth status.</li>
     <li>Integrations are owner-only. Webhook secrets are shown only on request, every request is signed, and the Chatwoot callback needs a secret token. Twenty and Chatwoot keys live in <code>.env</code>, never in the database.</li>
     <li>The bundled Chatwoot runs with <code>SAFE_FETCH_ALLOW_PRIVATE_NETWORK=true</code> so it can call the API container. Leave that off on an internet-facing Chatwoot. Webhook URLs can point at internal hosts too, which is why only owners can add them.</li>
-    <li>Production (later): TLS in front of LiveKit and the web app, and DPDP Act retention settings.</li>
+    <li>Recordings are only served by the API to a signed-in admin (through the dashboard's server-side proxy); the RustFS bucket is never public. Only owners can delete recordings or change retention.</li>
+    <li>Langfuse stores full prompts and replies, which include what callers said. Its login is created from <code>.env</code> and sign-up is off; it listens on 127.0.0.1 only.</li>
+    <li>Production (later): TLS in front of LiveKit and the web app.</li>
   </ul>
 </section>
 
@@ -884,6 +941,9 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
   <h2>Troubleshooting</h2>
   <div class="table-wrap"><table>
     <tr><th>Symptom</th><th>Cause and fix</th></tr>
+    <tr><td>Call page says <em>Recording was not available (Recorder not running)</em></td><td>The <code>recording</code> profile isn't up. Run <code>make up-rec</code>; the next call is recorded. Check <code>make logs s=egress</code> if it still fails.</td></tr>
+    <tr><td>Calls drop or the agent mishears parts of what callers say, with <code>Cannot write to closing transport</code> in the agent log</td><td>The speech-to-text connection to Sarvam is being reconnected. Keep <code>STT_LIVENESS_TIMEOUT</code> at 30 or more (LiveKit's 6 s default closes healthy connections when Sarvam answers pings late). After changing agent code or settings, rebuild the agent image: <code>docker compose up -d --build agent</code>.</td></tr>
+    <tr><td>No traces in Langfuse</td><td>Start it with <code>make up-obs</code>. Traces arrive a few seconds after each LLM call. LiteLLM logs <code>langfuse_otel</code> errors if it can't reach Langfuse.</td></tr>
     <tr><td>Agent image build takes 20–40 min</td><td>Slow ISP route to PyPI (seen at 20–110 KB/s while other sites ran at 13 MB/s). Let it finish once; it's cached afterwards. Try a different network or a VPN if it keeps failing. Pip already retries with long timeouts.</td></tr>
     <tr><td>Demo says "Waiting for agent…" forever</td><td>Check <code>make logs s=agent</code>. Usually the agent isn't healthy yet, or it crashed while starting the session.</td></tr>
     <tr><td>"Agent error (config): … API key is required"</td><td>Add the key to <code>.env</code>, then <code>docker compose up -d --force-recreate agent litellm</code>.</td></tr>
@@ -919,7 +979,7 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
     <tr><td>3</td><td>Knowledge base / RAG with selectable embedding providers, visual product setup</td><td class="status-done">Done</td></tr>
     <tr><td>4</td><td>Admin dashboard: sign-in and users, per-agent prompts, models, voices and timing, calls, leads, tickets, latency charts</td><td class="status-done">Done</td></tr>
     <tr><td>5</td><td>Signed webhooks with retries, Twenty CRM and Chatwoot sync (two-way ticket status)</td><td class="status-done">Done</td></tr>
-    <tr><td>6</td><td>Call recording (consent) to RustFS, Langfuse tracing</td><td>Planned</td></tr>
+    <tr><td>6</td><td>Call recording with per-agent consent to RustFS, retention settings, Langfuse tracing</td><td class="status-done">Done</td></tr>
     <tr><td>7</td><td>SIP: inbound and outbound calls, warm transfer, Indian SIP trunk</td><td>Planned</td></tr>
     <tr><td>8</td><td>Embeddable website widget</td><td>Planned</td></tr>
     <tr><td>9</td><td>Self-hosted models on GPU (vLLM, IndicConformer, Indic Parler)</td><td>Planned</td></tr>
@@ -927,7 +987,7 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
   <p class="muted">Full decisions and details: <code>PLAN.md</code>.</p>
 </section>
 
-<footer>AudioBots starter kit · guide reflects the code as of Phase 5 (Nov 2026).</footer>
+<footer>AudioBots starter kit · guide reflects the code as of Phase 6 (Nov 2026).</footer>
 </main>
 </div>
 

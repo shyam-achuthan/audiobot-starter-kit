@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 COMPOSE := docker compose
 
-.PHONY: help setup env ip up up-crm crm-setup up-all build down logs ps health admin-password clean
+.PHONY: help setup env ip up up-crm crm-setup up-rec up-obs up-all build down logs ps health admin-password clean
 
 help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}'
@@ -25,6 +25,15 @@ up-crm: env ## Start core + local Twenty CRM and Chatwoot (crm profile)
 
 crm-setup: ## Connect the local Chatwoot (automatic) and Twenty (guided) to AudioBots
 	@./scripts/crm-setup.sh
+
+up-rec: env ## Start core + call recording (LiveKit Egress -> RustFS)
+	@$(COMPOSE) --profile recording up -d --build
+	@$(MAKE) --no-print-directory ps
+
+up-obs: env ## Start core + Langfuse LLM tracing (localhost:3040)
+	@$(COMPOSE) --profile observability up -d --build
+	@$(MAKE) --no-print-directory ps
+	@echo "Langfuse: http://localhost:3040 (login: LANGFUSE_ADMIN_EMAIL / LANGFUSE_ADMIN_PASSWORD in .env)"
 
 up-all: env ## Start core + every optional profile
 	@$(COMPOSE) --profile '*' up -d --build
