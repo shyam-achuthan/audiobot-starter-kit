@@ -65,6 +65,11 @@ router_settings:
 
 litellm_settings:
   drop_params: true
+  # Phase 6: every LLM call is traced in the self-hosted Langfuse (observability profile) over
+  # OpenTelemetry (Langfuse v4 accepts OTel only).
+  # The agent tags requests with metadata.session_id = call id, so one call = one Langfuse session.
+  # Without Langfuse running, LiteLLM logs a warning and calls are unaffected.
+  callbacks: ["langfuse_otel"]
 
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
