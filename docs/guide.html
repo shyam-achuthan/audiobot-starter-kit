@@ -183,6 +183,7 @@ footer { color: var(--faint); font-size: .85rem; border-top: 1px solid var(--bor
     <li><a href="#languages">Languages</a></li>
     <li class="group">Use</li>
     <li><a href="#setup-knowledge">Setup &amp; knowledge</a></li>
+    <li><a href="#dashboard">Admin dashboard</a></li>
     <li><a href="#demo">Demo page</a></li>
     <li><a href="#workflows">Workflows</a></li>
     <li><a href="#data-api">Data &amp; API</a></li>
@@ -221,7 +222,7 @@ footer { color: var(--faint); font-size: .85rem; border-top: 1px solid var(--bor
     <div class="card"><h3>Knowledge base</h3><p>Agents answer from your documents, FAQs and web pages, in any supported language, and quote prices only from them.</p></div>
     <div class="card"><h3>Visual setup</h3><p>Business profile and knowledge are managed on admin pages, not in config files.</p></div>
   </div>
-  <div class="callout warn"><strong>Status:</strong> Phases 0–3 are done: the stack, the voice loop, workflows with tools and storage, and the knowledge base with visual product setup. The full admin dashboard, CRM sync, recording and SIP come in later phases. See the <a href="#roadmap">roadmap</a>.</div>
+  <div class="callout warn"><strong>Status:</strong> Phases 0–4 are done: the stack, the voice loop, workflows with tools and storage, the knowledge base with visual product setup, and the admin dashboard with sign-in and per-agent settings. CRM sync, recording and SIP come in later phases. See the <a href="#roadmap">roadmap</a>.</div>
 </section>
 
 <section id="quickstart">
@@ -399,7 +400,7 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
 
       <rect x="20" y="380" width="430" height="62" rx="10" class="box"/>
       <text x="36" y="405" class="t-title">Next.js web · :3000</text>
-      <text x="36" y="424" class="t-sub">/demo (voice test) · /admin (setup, knowledge · full admin in Phase 4)</text>
+      <text x="36" y="424" class="t-sub">/demo (voice test) · /admin (sign-in, dashboard, agents, knowledge)</text>
       <path d="M450 411 Q620 470 760 348" class="wire" marker-end="url(#ah)"/>
       <path d="M110 380 V112" class="wire" marker-end="url(#ah)"/>
       <text x="118" y="250" class="t-label">serves page</text>
@@ -545,7 +546,39 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
     <li>Text is split into ~800-character chunks on sentence boundaries (including <code>।</code>) and embedded with <code>embed-gemini</code> (Gemini embeddings, 768 dimensions) through LiteLLM. Changing a knowledge base's embedding model re-indexes it automatically.</li>
   </ul>
   <div class="callout tip"><strong>Try it with sample data.</strong> <code>samples/knowledge/</code> has a fictional product, QuickBill: a price list (Markdown), policies (Word) and a troubleshooting guide (PDF). Upload all three on the knowledge page, set the business name to QuickBill, and ask the demo about the Business plan price or refunds.</div>
-  <div class="callout warn"><strong>Protect the admin area</strong> before exposing the server: set <code>ADMIN_PASSWORD</code> (and optionally <code>ADMIN_USER</code>) in <code>.env</code> to require a browser login for <code>/admin</code>. Full admin accounts arrive in Phase 4.</div>
+</section>
+
+<section id="dashboard">
+  <h2>Admin dashboard</h2>
+  <p>Sign in at <a href="http://localhost:3000/admin">localhost:3000/admin</a> with an email and password.</p>
+  <h3>First sign-in</h3>
+  <ul>
+    <li><strong>From the browser</strong>: while no accounts exist, <code>/login</code> shows <em>Create the owner account</em>. Do this right after installing, before the server is reachable by others.</li>
+    <li><strong>From <code>.env</code></strong>: set <code>ADMIN_EMAIL</code> and <code>ADMIN_PASSWORD</code> (or answer the prompt in <code>./setup.sh</code>). The API creates the owner account on start if none exists. These values are ignored once any account exists.</li>
+    <li>Passwords need 10+ characters, mixing letters with numbers or symbols. They are stored as scrypt hashes. Five wrong attempts lock that email (and IP) for 15 minutes.</li>
+    <li>Sign-ins last 7 days (<code>ADMIN_SESSION_HOURS</code>). Changing your password signs out your other devices.</li>
+  </ul>
+  <div class="table-wrap"><table>
+    <tr><th>Page</th><th>What you can do</th></tr>
+    <tr><td><strong>Overview</strong></td><td>Calls, leads, open tickets, callbacks to make and median reply time for the last 7, 14 or 30 days. Charts: calls per day, reply time (median and p95) per day, where reply time goes (end of turn, STT, LLM, TTS), call outcomes, calls by agent and language. Every chart has hover details and a table view.</td></tr>
+    <tr><td><strong>Calls</strong></td><td>Search by caller name or phone, filter by outcome, agent or status. A call page shows the full transcript, the agents it passed through, linked lead and tickets, and latency for every turn (replies over 3 s are highlighted). Live calls refresh every few seconds.</td></tr>
+    <tr><td><strong>Leads</strong></td><td>Search and filter by status or score (hot = 70+). Open a lead to see everything collected on the call, change its status and add notes.</td></tr>
+    <tr><td><strong>Tickets</strong></td><td>Open and in-progress tickets by default. Change status inline, filter by type (support or callback) and priority, search by ticket number, subject, name or phone. A ticket page lets you edit the description, status and priority.</td></tr>
+    <tr><td><strong>Agents</strong></td><td>Per-agent settings, described below.</td></tr>
+    <tr><td><strong>Knowledge</strong>, <strong>Setup</strong></td><td>See <a href="#setup-knowledge">Setup &amp; knowledge</a>.</td></tr>
+    <tr><td><strong>Users</strong> (owners only)</td><td>Add admins or owners, change roles, set a new password for someone, disable or delete accounts. At least one active owner always remains.</td></tr>
+  </table></div>
+  <h3>Agent settings</h3>
+  <p>Each of the four agents (receptionist, lead qualification, sales, support) can be changed on its own. Settings apply to the <strong>next call</strong>, with no redeploy or restart. Calls in progress keep the settings they started with.</p>
+  <div class="table-wrap"><table>
+    <tr><th>Setting</th><th>Notes</th></tr>
+    <tr><td>Role and rules</td><td>The agent's job and how it uses its tools. The business profile, language rules and voice rules are always added on top, so you can't accidentally remove them.</td></tr>
+    <tr><td>Greeting</td><td>An instruction for the first sentence. The agent says it in the caller's language.</td></tr>
+    <tr><td>LLM</td><td>Any <code>agent-*</code> alias from <code>infra/litellm/config.yaml</code>.</td></tr>
+    <tr><td>Voice and pace</td><td>Any voice of the configured Sarvam model (grouped female and male), pace 0.5–2.0. A different voice per agent makes handoffs audible.</td></tr>
+    <tr><td>Turn timing</td><td>Minimum and maximum end-of-turn delay, whether the caller can interrupt, and the minimum interruption length. LiveKit applies the minimum interruption length to the whole call, so it comes from the agent that answers.</td></tr>
+  </table></div>
+  <p>Every field shows <em>Default</em> or <em>Customized</em>, and each one has a <em>Use default</em> link. The defaults come from the code (<code>agent/prompts.py</code> and <code>.env</code>): the agent worker reports them to the API when it starts, so they always match the running version.</p>
 </section>
 
 <section id="demo">
@@ -597,7 +630,7 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
   </table></div>
   <p class="muted">Call outcome only moves up in priority: <code>callback_requested</code> &gt; <code>ticket_created</code> &gt; <code>lead_captured</code> &gt; <code>info_only</code> &gt; <code>abandoned</code>.</p>
   <h3>Endpoints</h3>
-  <p>Everything under <code>/v1</code> except the browser token requires <code>Authorization: Bearer $AGENT_API_TOKEN</code>. Admin user login arrives in Phase 4.</p>
+  <p>Everything under <code>/v1</code> except the browser token, <code>/v1/auth/status</code>, <code>/login</code> and <code>/setup</code> needs <code>Authorization: Bearer …</code> with either <code>AGENT_API_TOKEN</code> (the voice agent) or an admin session token (what the dashboard sends). Creating calls, turns, leads and tickets is agent-only, and user management is owner-only.</p>
   <div class="table-wrap"><table>
     <tr><th>Method &amp; path</th><th>Purpose</th></tr>
     <tr><td><code>POST /v1/livekit/token</code></td><td>Public. Room and token for a browser call, with <code>{"workflow": "router|sales|support|lead_qualification"}</code></td></tr>
@@ -611,6 +644,12 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
     <tr><td><code>GET|POST /v1/knowledge</code>, <code>GET|PATCH|DELETE /v1/knowledge/:id</code></td><td>Knowledge bases (with per-status document counts)</td></tr>
     <tr><td><code>POST /v1/knowledge/:id/files</code> · <code>/faqs</code> · <code>/urls</code></td><td>Add sources (multipart field <code>files</code>; FAQ <code>{question, answer}</code>; URL <code>{url, maxPages}</code>)</td></tr>
     <tr><td><code>POST /v1/knowledge/:id/reindex</code>, <code>…/documents/:docId/retry</code>, <code>DELETE …/documents/:docId</code></td><td>Maintenance</td></tr>
+    <tr><td><code>POST /v1/auth/login</code> · <code>/setup</code> · <code>/logout</code> · <code>/password</code>, <code>GET /v1/auth/me</code> · <code>/status</code></td><td>Admin sign-in. <code>/setup</code> creates the first owner and only works while no accounts exist</td></tr>
+    <tr><td><code>GET|POST /v1/admin-users</code>, <code>PATCH|DELETE /v1/admin-users/:id</code></td><td>Owner only: manage admin accounts</td></tr>
+    <tr><td><code>GET /v1/agents</code>, <code>GET|PUT /v1/agents/:workflow</code>, <code>DELETE …/overrides</code></td><td>Per-agent settings: defaults, overrides and effective values. <code>PUT</code> takes any subset of fields; <code>null</code> clears an override</td></tr>
+    <tr><td><code>GET /v1/agents/options</code>, <code>PUT /v1/agents/defaults</code></td><td>LLM aliases and voices for the editor; the agent worker reports its defaults (agent only)</td></tr>
+    <tr><td><code>GET /v1/stats?days=14</code></td><td>Dashboard totals, daily series and latency percentiles (days are counted in <code>DASHBOARD_TIMEZONE</code>, default Asia/Kolkata)</td></tr>
+    <tr><td><code>GET /v1/calls|leads|tickets?q=&amp;limit=&amp;offset=…</code></td><td>Lists return <code>{items, total}</code> and take search, filters (status, outcome, workflow, type, priority, minScore) and <code>from</code>/<code>to</code> dates</td></tr>
     <tr><td><code>POST /v1/knowledge/search</code></td><td><code>{query, workflow?, kbIds?, topK?}</code>: semantic search, used by agents and the Test search box</td></tr>
   </table></div>
   <div class="code"><pre>T=$(grep ^AGENT_API_TOKEN= .env | cut -d= -f2)
@@ -622,7 +661,7 @@ curl -s localhost:4000/v1/tickets/1004  -H "Authorization: Bearer $T"</pre></div
   <h2>Services &amp; URLs</h2>
   <div class="table-wrap"><table>
     <tr><th>Service</th><th>URL / port</th><th>Purpose</th></tr>
-    <tr><td><code>web</code></td><td><a href="http://localhost:3000">localhost:3000</a></td><td>Demo page and admin (Next.js): <code>/admin</code>, <code>/admin/setup</code>, <code>/admin/knowledge</code></td></tr>
+    <tr><td><code>web</code></td><td><a href="http://localhost:3000">localhost:3000</a></td><td>Demo page and admin (Next.js): <code>/login</code>, <code>/admin</code> (overview), calls, leads, tickets, agents, knowledge, setup, users</td></tr>
     <tr><td><code>api</code></td><td><a href="http://localhost:4000/health">localhost:4000</a></td><td>NestJS: <code>/health</code>, <code>/health/live</code>, <code>POST /v1/livekit/token</code></td></tr>
     <tr><td><code>livekit</code></td><td><code>ws://localhost:7880</code>, TCP 7881, UDP 50000–50100</td><td>WebRTC media server</td></tr>
     <tr><td><code>agent</code></td><td>internal (health on :8081)</td><td>Voice agent workers</td></tr>
@@ -661,7 +700,7 @@ curl -s localhost:4000/v1/tickets/1004  -H "Authorization: Bearer $T"</pre></div
     <tr><td><code>POSTGRES_USER</code> / <code>_PASSWORD</code> / <code>_DB</code></td><td>audiobots / <em>generated</em> / audiobots</td><td>Database credentials</td></tr>
     <tr><td><code>S3_ACCESS_KEY</code> / <code>S3_SECRET_KEY</code></td><td><em>generated</em></td><td>RustFS credentials</td></tr>
     <tr><td><code>LITELLM_MASTER_KEY</code></td><td><em>generated</em></td><td>Auth for the LiteLLM gateway</td></tr>
-    <tr><td><code>AGENT_API_TOKEN</code></td><td><em>generated</em></td><td>Shared secret the agent (and server-side admin pages) use to call the API</td></tr>
+    <tr><td><code>AGENT_API_TOKEN</code></td><td><em>generated</em></td><td>Shared secret the voice agent uses to call the API (the dashboard uses admin sign-in instead)</td></tr>
     <tr><td><code>COMPANY_NAME</code></td><td>AudioBots Demo</td><td>Business name the agents introduce themselves with</td></tr>
     <tr><td><code>SARVAM_API_KEY</code>, <code>GEMINI_API_KEY</code></td><td>empty</td><td>Required provider keys</td></tr>
     <tr><td><code>VERTEXAI_PROJECT</code> / <code>_LOCATION</code></td><td>empty / asia-south1</td><td>Optional Vertex AI</td></tr>
@@ -672,11 +711,13 @@ curl -s localhost:4000/v1/tickets/1004  -H "Authorization: Bearer $T"</pre></div
     <tr><td><code>VAD_MIN_SILENCE</code>, <code>ENDPOINTING_*</code>, <code>PREEMPTIVE_GENERATION</code></td><td>0.25, 0.3 / 1.2, true</td><td>Turn-taking (see <a href="#latency">Latency</a>)</td></tr>
     <tr><td><code>NUM_IDLE_PROCESSES</code></td><td>2</td><td>Warm agent processes. Raise this on a production host.</td></tr>
     <tr><td><code>OUTBOUND_PROXY</code></td><td>empty</td><td>Optional HTTP proxy for provider traffic (Sarvam from the agent, Gemini and others from LiteLLM). Internal services always connect directly.</td></tr>
-    <tr><td><code>ADMIN_USER</code> / <code>ADMIN_PASSWORD</code></td><td>admin / empty</td><td>Browser login for <code>/admin</code>. Empty means open, which is fine only on your own machine.</td></tr>
+    <tr><td><code>ADMIN_EMAIL</code> / <code>ADMIN_PASSWORD</code></td><td>empty</td><td>Create the first owner account on start (only while no accounts exist). Leave empty to create it on <code>/login</code>.</td></tr>
+    <tr><td><code>ADMIN_SESSION_HOURS</code></td><td>168</td><td>How long a dashboard sign-in lasts</td></tr>
+    <tr><td><code>DASHBOARD_TIMEZONE</code></td><td>Asia/Kolkata</td><td>Day boundaries for dashboard charts</td></tr>
     <tr><td><code>AUTO_MIGRATE</code></td><td>true</td><td>Apply database migrations when the API starts</td></tr>
     <tr><td><code>CORS_ORIGINS</code></td><td><code>http://localhost:3000</code></td><td>Origins allowed to call the API (websites embedding the widget)</td></tr>
   </table></div>
-  <p>After editing, apply with <code>make up</code>. Restarting just the agent is enough for voice settings: <code>docker compose up -d --force-recreate agent</code>.</p>
+  <p>After editing, apply with <code>make up</code>. Restarting just the agent is enough for voice settings: <code>docker compose up -d --force-recreate agent</code>. The voice, model and timing values here are the <em>defaults</em>; anything changed per agent on the dashboard's Agents page takes precedence.</p>
 </section>
 
 <section id="providers">
@@ -737,9 +778,9 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
 │   ├── languages.py         supported languages
 │   └── scripts/             e2e call + benchmarks
 ├── api/                     NestJS + Sequelize
-│   └── src/                 calls/ leads/ tickets/ knowledge/ profile/ livekit/ health/
+│   └── src/                 auth/ agents/ stats/ calls/ leads/ tickets/ knowledge/ profile/ livekit/ health/
 │       └── database/        models.ts, migrations/, migrator.ts
-├── web/                     Next.js: /demo, /admin (setup, knowledge), /admin-api proxy
+├── web/                     Next.js: /demo, /login, /admin/*, /admin-api proxy (adds the session)
 ├── samples/knowledge/       fictional QuickBill docs for demos and tests
 ├── infra/
 │   ├── livekit/livekit.yaml
@@ -757,7 +798,8 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
     <li>Browser tokens are short-lived (15 minutes) and scoped to a single new room.</li>
     <li>Postgres, LiteLLM and RustFS listen on localhost only. LiveKit and the web app are reachable on your LAN.</li>
     <li>Recording upload to LiveKit Cloud is disabled. Call recording (Phase 6) will play a consent prompt first and store audio in your own RustFS.</li>
-    <li>Production (later): TLS in front of LiveKit and the web app, admin authentication, and DPDP Act retention settings.</li>
+    <li>The dashboard needs an email + password sign-in. The session token sits in an httpOnly, SameSite=Lax cookie (Secure over HTTPS), and only its SHA-256 is stored. The browser never sees <code>AGENT_API_TOKEN</code>. The public <code>/backend</code> proxy only serves the call token and auth status.</li>
+    <li>Production (later): TLS in front of LiveKit and the web app, and DPDP Act retention settings.</li>
   </ul>
 </section>
 
@@ -777,6 +819,9 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
     <tr><td>Containers have no internet (npm or pip hang during build, agent can't reach Sarvam) while the Mac is fine</td><td>Check IPv4: <code>curl -4 -m 8 https://www.google.com</code>. Docker's container network uses IPv4 only. On some networks only IPv6 works (seen on a home router, and with VPN kill switches), and Sarvam has IPv4 addresses only. Fix the network (restart the router, turn off the VPN kill switch, or try another network). For a corporate proxy, set <code>OUTBOUND_PROXY</code>.</td></tr>
     <tr><td>Agent goes quiet for 20 s or more, or the call drops; LiteLLM logs show <code>429 RESOURCE_EXHAUSTED</code></td><td>Your Gemini key hit its quota. The <strong>free tier allows only 20 requests per day per model</strong>, which a few test calls use up. Enable billing for the key in Google AI Studio (pay-as-you-go), or use Vertex AI. Until then LiteLLM falls back to Flash-Lite automatically: calls keep working, but turns that use tools are slower.</td></tr>
     <tr><td>A source stays in <em>error</em> on the knowledge page</td><td>The error text says why: e.g. "No readable text found" (scanned PDF without OCR), "too little readable text" (page needs JavaScript), or "Private, local or internal addresses are not allowed". Fix it and press Retry.</td></tr>
+    <tr><td>Forgot the admin password, or locked out</td><td>Another owner can set a new one under <em>Users</em>. Otherwise, on the server: <code>make admin-password email=you@example.com</code> sets a new password (it creates an owner account if the email doesn't exist). "Too many failed sign-ins" clears after 15 minutes, or immediately with <code>docker compose restart api</code>.</td></tr>
+    <tr><td>Agents page says the worker hasn't reported its defaults</td><td>The agent container reports its built-in settings when it starts and again on the next call. Check that <code>agent</code> is running (<code>make ps</code>), then reload the page.</td></tr>
+    <tr><td>A change on the Agents page didn't apply</td><td>Settings are read when a call starts, so calls already in progress keep the old ones. Start a new call.</td></tr>
     <tr><td>Agent says it will save or book something, then asks for the number again</td><td>A tool refused the request; see <code>make logs s=agent</code> and search for <code>ToolError</code>. The message says why, e.g. "phone is not a valid number".</td></tr>
     <tr><td>Bot replies in the wrong language</td><td>Check the agent logs for <code>language switch</code> lines. If STT detects correctly but the reply drifts, try <code>LLM_MODEL=agent-smart</code>.</td></tr>
   </table></div>
@@ -791,7 +836,7 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
     <tr><td>1b</td><td>Latency: Vertex AI Mumbai benchmark, then the next LLM option</td><td class="status-next">Waiting on Vertex key</td></tr>
     <tr><td>2</td><td>Workflows with tools and handoffs; calls, turns, leads and tickets in Postgres (Sequelize)</td><td class="status-done">Done</td></tr>
     <tr><td>3</td><td>Knowledge base / RAG with selectable embedding providers, visual product setup</td><td class="status-done">Done</td></tr>
-    <tr><td>4</td><td>Admin dashboard: agents, prompts, voices, calls, leads, latency charts</td><td>Planned</td></tr>
+    <tr><td>4</td><td>Admin dashboard: sign-in and users, per-agent prompts, models, voices and timing, calls, leads, tickets, latency charts</td><td class="status-done">Done</td></tr>
     <tr><td>5</td><td>Webhooks, plus Twenty CRM and Chatwoot sync</td><td>Planned</td></tr>
     <tr><td>6</td><td>Call recording (consent) to RustFS, Langfuse tracing</td><td>Planned</td></tr>
     <tr><td>7</td><td>SIP: inbound and outbound calls, warm transfer, Indian SIP trunk</td><td>Planned</td></tr>
@@ -801,7 +846,7 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
   <p class="muted">Full decisions and details: <code>PLAN.md</code>.</p>
 </section>
 
-<footer>AudioBots starter kit · guide reflects the code as of Phase 3 (Nov 2026).</footer>
+<footer>AudioBots starter kit · guide reflects the code as of Phase 4 (Nov 2026).</footer>
 </main>
 </div>
 

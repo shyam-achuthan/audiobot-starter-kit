@@ -24,7 +24,7 @@ Uses open-source parts wherever it can. Every provider can be swapped by config.
 | Backend API | **NestJS** (TypeScript) with **Sequelize** (`sequelize-typescript`, Umzug migrations run on startup) |
 | Bookings (v1) | **Callback requests only**: agents capture a preferred callback time as a high-priority callback ticket; no calendar |
 | Human handoff (until SIP) | **Callback ticket**: when a caller asks for a person, the agent confirms name and phone and books a high-priority callback |
-| Admin and demo | **Next.js** with shadcn/ui. The demo page embeds the real widget |
+| Admin and demo | **Next.js** with Tailwind (small in-house UI kit and SVG charts, no component or chart library). Admin sign-in: email + password, sessions in Postgres |
 | Web widget | Small TypeScript bundle (Vite), embedded with one `<script>` tag |
 | Observability | **Langfuse** (self-hosted) for LLM traces, plus per-stage latency metrics in Postgres |
 | Recording | LiveKit Egress writes to **RustFS** (S3-compatible, Apache-2.0; MinIO stopped publishing Docker images). A consent prompt plays before recording |
@@ -154,7 +154,7 @@ Target **≤ 800 ms** from the user stopping to the bot's first audio. Stretch g
 | 1 ✅ | **Voice loop**: Sarvam STT/TTS, LiteLLM to Gemini, VAD, turn detection, barge-in, latency metrics | Talking on `/demo` in English, Hindi and Tamil works, with per-turn latency logged |
 | 2 ✅ | **Workflows**: Router plus the 3 agents, handoffs, tools against the NestJS API, calls and turns stored | Each flow can be completed end-to-end (scripted scenario calls pass), and the lead, ticket and callback rows appear in Postgres |
 | 3 ✅ | **Knowledge base / RAG**: upload, chunk, embed (provider chosen per KB), pgvector search | Sales and Support answer from uploaded docs, and switching the embedding provider re-indexes |
-| 4 | **Admin dashboard**: agents (prompts, models, voices), knowledge bases, calls with transcript and audio, leads, tickets, latency charts | Agent behaviour can be changed from the UI without a redeploy |
+| 4 ✅ | **Admin dashboard**: email/password sign-in with owner/admin roles, agents (prompts, models, voices, turn timing), knowledge bases, calls with transcript (audio in phase 6), leads, tickets, latency charts | Agent behaviour can be changed from the UI without a redeploy |
 | 5 | **Integrations**: outbound webhooks with retries, Twenty and Chatwoot sync (`crm` profile) | A lead shows up in Twenty and a ticket in Chatwoot automatically |
 | 6 | **Recording and observability**: Egress to RustFS, consent flow, Langfuse traces | Every call has a recording (if consented) and a full LLM trace |
 | 7 | **SIP**: `livekit-sip`, inbound dispatch rules, outbound calls, warm transfer. Tested with a softphone | A call from Linphone/Zoiper goes through the same workflows. The SIP trunk is plugged in once chosen |
@@ -180,5 +180,5 @@ Target **≤ 800 ms** from the user stopping to the bot's first audio. Stretch g
 
 1. SIP trunk provider (Exotel, Plivo or Tata/Airtel), needed before phase 7 goes live
 2. GPU cloud (E2E, AWS Mumbai, Yotta), needed before phase 9
-3. Admin authentication (simple email/password vs Google SSO)
+3. ~~Admin authentication~~ decided: email + password (scrypt, DB sessions, owner/admin roles); Google SSO can be added later
 4. Production domain and TLS (Caddy/Traefik in front of LiveKit and the web app)
