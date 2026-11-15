@@ -13,6 +13,7 @@ import asyncio
 import logging
 import re
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from typing import ClassVar
 
 from livekit.agents import Agent, RunContext, ToolError, function_tool, get_job_context
@@ -20,12 +21,14 @@ from livekit.agents import llm as lk_llm
 from livekit.agents import tts as lk_tts
 
 import agent_config
+import phone as sip_phone  # "phone" is also a tool argument name
 import pipeline
 import prompts
 from api_client import ApiClient, ApiError
 from settings import Settings
 
 logger = logging.getLogger("audiobots.workflows")
+IST = timezone(timedelta(hours=5, minutes=30))
 
 # How long the greeting waits to learn whether recording started (the API answers in ~0.5 s when
 # the recorder is up). Longer means dead air at the start of calls when it is down.
@@ -54,9 +57,20 @@ class CallData:
     recording_consent: str = "off"
     recording_status: str | None = None
     recording_task: asyncio.Task | None = None
+    # Phone calls (Phase 7)
+    direction: str = "inbound"
+    outbound_context: str | None = None  # outbound: why we are calling
+    ticket_ref: str | None = None  # outbound callback: the ticket it is about
+    sip_identity: str | None = None  # the phone participant (for transfers)
     # One LLM per (model alias, agent) and one TTS per (voice, pace), shared across handoffs.
     _llms: dict[tuple[str, str], lk_llm.LLM] = field(default_factory=dict)
     _ttss: dict[tuple[str, float], lk_tts.TTS] = field(default_factory=dict)
+
+    def phone_context(self) -> dict | None:
+        """Facts about a phone call that the instructions mention (None for web calls)."""
+        if self.channel != "sip":
+            return None
+        return {"direction": self.direction, "caller_phone": self.caller_phone, "context": self.outbound_context}
 
     def agent_settings(self, workflow: str) -> agent_config.AgentSettings:
         return agent_config.resolve(workflow, self.settings, self.overrides.get(workflow))
@@ -131,6 +145,19 @@ def _clean_fields(fields: dict) -> tuple[dict, list[str]]:
     return out, skipped
 
 
+def _valid_callback_at(value: str | None) -> str | None:
+    """Keep an LLM-computed callback time only if it parses and is not in the past."""
+    if not value:
+        return None
+    try:
+        when = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=IST)
+    return when.isoformat() if when > datetime.now(IST) - timedelta(minutes=5) else None
+
+
 def _require_confirmed(phone: str | None, confirmed: bool) -> None:
     if phone and phone.strip().lower() not in _PLACEHOLDERS and not confirmed:
         raise ToolError(CONFIRM_PHONE)
@@ -142,7 +169,8 @@ class BaseAgent(Agent):
     def __init__(self, call: CallData, *, chat_ctx=None, handoff_summary: str | None = None) -> None:
         cfg = call.agent_settings(self.workflow)
         super().__init__(
-            instructions=prompts.instructions_for(self.workflow, call.language, call.profile, role=cfg.role),
+            instructions=prompts.instructions_for(self.workflow, call.language, call.profile, role=cfg.role,
+                                                  phone=call.phone_context()),
             chat_ctx=chat_ctx,
             llm=call.llm_for(cfg.llm_model, self.workflow),
             tts=call.tts_for(cfg.tts_speaker, cfg.tts_pace),
@@ -163,6 +191,8 @@ class BaseAgent(Agent):
                     self.cfg.llm_model, self.cfg.tts_speaker)
         if self.handoff_summary:
             instructions = prompts.handoff_for(self.handoff_summary)
+        elif self.call.direction == "outbound":
+            instructions = prompts.outbound_greeting(self.call.caller_name, self.call.outbound_context) + await self._consent_line()
         else:
             instructions = prompts.greeting_for(self.workflow, self.cfg.greeting) + await self._consent_line()
         self.session.generate_reply(instructions=instructions)
@@ -186,7 +216,8 @@ class BaseAgent(Agent):
         """Pin the reply language in the system prompt (small models drift otherwise)."""
         self.call.language = language
         await self.update_instructions(
-            prompts.instructions_for(self.workflow, language, self.call.profile, role=self.cfg.role))
+            prompts.instructions_for(self.workflow, language, self.call.profile, role=self.cfg.role,
+                                     phone=self.call.phone_context()))
 
     def _handoff(self, cls: type[BaseAgent], summary: str) -> BaseAgent:
         logger.info("handoff %s -> %s: %s", self.workflow, cls.workflow, summary)
@@ -210,14 +241,16 @@ class BaseAgent(Agent):
         lead["_skipped"] = skipped
         return lead
 
-    async def _callback_ticket(self, reason: str, preferred_time: str | None, subject: str) -> str:
+    async def _callback_ticket(self, reason: str, preferred_time: str | None, subject: str,
+                               callback_at: str | None = None) -> str:
         if not self.call.caller_phone:
             raise ToolError("I need the caller's name and 10-digit mobile number before arranging a callback.")
         ticket = await _call_api(self.call.api.create_ticket(
             callId=self.call.call_id, leadId=self.call.lead_id, type="callback",
             subject=subject, description=reason, priority="high",
             contactName=self.call.caller_name, contactPhone=self.call.caller_phone,
-            preferredCallbackTime=preferred_time, language=self.call.language,
+            preferredCallbackTime=preferred_time, callbackAt=_valid_callback_at(callback_at),
+            language=self.call.language,
         ))
         self.call.tickets.append(ticket["ref"])
         return ticket["ref"]
@@ -248,9 +281,10 @@ class BaseAgent(Agent):
     @function_tool()
     async def request_human_callback(
         self, context: RunContext[CallData], name: str, phone: str, phone_confirmed: bool,
-        reason: str, preferred_time: str | None = None,
+        reason: str, preferred_time: str | None = None, callback_at: str | None = None,
     ) -> str:
-        """Arrange for a human team member to call the caller back. Use when the caller asks for a person.
+        """Arrange for a human team member to call the caller back. Use when the caller asks for a person
+        and a live transfer is not possible.
 
         Args:
             name: Caller's name.
@@ -258,11 +292,13 @@ class BaseAgent(Agent):
             phone_confirmed: True only after you read the number back and the caller said yes.
             reason: One sentence on what they need help with.
             preferred_time: When they'd like the call, in their words (e.g. "tomorrow after 4 pm").
+            callback_at: The same time as ISO 8601 with +05:30 (e.g. 2026-11-16T16:00:00+05:30), worked out
+                from the current date and time in your instructions. Omit if no time was given.
         """
         _require_confirmed(phone, phone_confirmed)
         await self._ensure_lead(name=name, phone=phone, status="callback",
                                 preferredCallbackTime=preferred_time)
-        ref = await self._callback_ticket(reason, preferred_time, f"Human callback requested: {name}")
+        ref = await self._callback_ticket(reason, preferred_time, f"Human callback requested: {name}", callback_at)
         return f"Callback booked as {_spoken_ref(ref)}. Tell the caller a team member will call them."
 
     @function_tool()
@@ -293,6 +329,34 @@ class BaseAgent(Agent):
         if call.recording_status == "recording":
             return "Recording started. Thank the caller and continue."
         return "Recording is not available right now. Do not mention it again; continue helping."
+
+    @function_tool()
+    async def transfer_to_human(self, context: RunContext[CallData], reason: str) -> str:
+        """Connect a phone caller to a human team member now. Use when they ask for a person.
+        First tell the caller, in one short sentence, that you are connecting them; then call this.
+
+        Args:
+            reason: One sentence on what they need, for the team member.
+        """
+        call = self.call
+        number = self.cfg.transfer_number
+        if call.channel != "sip" or not call.sip_identity or not number:
+            return ("A live transfer is not possible on this call. Offer a callback from a team member "
+                    "instead and book it with request_human_callback.")
+        await context.wait_for_playout()  # let "connecting you" finish
+        try:
+            await sip_phone.transfer(get_job_context().api, call.room, call.sip_identity, number)
+        except Exception as e:  # noqa: BLE001 - any SIP/LiveKit failure falls back to a callback
+            logger.warning("transfer to %s failed: %s", number, e)
+            return ("The transfer did not go through. Apologise, and offer a callback from a team member "
+                    "with request_human_callback.")
+        if call.call_id:
+            try:
+                await call.api.update_call(call.call_id, outcome="transferred")
+            except ApiError as e:
+                logger.warning("could not mark call transferred: %s", e.message)
+        logger.info("call transferred to a human (%s): %s", number, reason)
+        return "Transferred. Say nothing more."
 
     @function_tool()
     async def end_call(self, context: RunContext[CallData]) -> None:
@@ -372,7 +436,7 @@ class LeadQualificationAgent(BaseAgent):
     @function_tool()
     async def finish_qualification(
         self, context: RunContext[CallData], score: int, qualified: bool,
-        preferred_callback_time: str, notes: str | None = None,
+        preferred_callback_time: str, notes: str | None = None, callback_at: str | None = None,
     ) -> str:
         """Finish qualification and book the specialist callback.
 
@@ -381,6 +445,8 @@ class LeadQualificationAgent(BaseAgent):
             qualified: True if this is a real opportunity worth a specialist's time.
             preferred_callback_time: When the caller wants the specialist to call.
             notes: Anything else useful for the specialist.
+            callback_at: preferred_callback_time as ISO 8601 with +05:30, from the current date and time
+                in your instructions. Omit if unclear.
         """
         if not self.call.lead_id:
             raise ToolError("Save the caller's details with save_lead_details first.")
@@ -391,6 +457,7 @@ class LeadQualificationAgent(BaseAgent):
         ref = await self._callback_ticket(
             notes or "Qualified lead: specialist follow-up", preferred_callback_time,
             f"Sales callback: {self.call.caller_name or 'new lead'} (score {score})",
+            callback_at,
         )
         return f"Lead saved and callback booked as {_spoken_ref(ref)}."
 
@@ -428,7 +495,7 @@ class SalesAgent(BaseAgent):
     @function_tool()
     async def request_callback(
         self, context: RunContext[CallData], name: str, phone: str, phone_confirmed: bool,
-        reason: str, preferred_time: str,
+        reason: str, preferred_time: str, callback_at: str | None = None,
     ) -> str:
         """Book a specialist callback for pricing, a demo or a proposal (also saves the contact).
 
@@ -438,12 +505,14 @@ class SalesAgent(BaseAgent):
             phone_confirmed: True only after you read the number back and the caller said yes.
             reason: What the specialist should help with.
             preferred_time: When the caller wants the call, in their words.
+            callback_at: preferred_time as ISO 8601 with +05:30, from the current date and time in your
+                instructions. Omit if unclear.
         """
         _require_confirmed(phone, phone_confirmed)
         await self._ensure_lead(name=name, phone=phone, need=reason, status="callback",
                                 preferredCallbackTime=preferred_time)
         ref = await self._callback_ticket(reason, preferred_time,
-                                          f"Sales callback: {self.call.caller_name or 'caller'}")
+                                          f"Sales callback: {self.call.caller_name or 'caller'}", callback_at)
         return f"Callback booked as {_spoken_ref(ref)}."
 
     @function_tool()

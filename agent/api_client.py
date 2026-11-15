@@ -52,8 +52,18 @@ class ApiClient:
             raise ApiError(503, "the booking system is temporarily unavailable") from e
 
     # ---- calls ----
-    async def create_call(self, room: str, workflow: str, channel: str = "web") -> dict:
-        return await self._req("POST", "/v1/calls", json={"room": room, "workflow": workflow, "channel": channel})
+    async def create_call(self, room: str, workflow: str, channel: str = "web", *, direction: str = "inbound",
+                          remote_number: str | None = None, local_number: str | None = None) -> dict:
+        body = {"room": room, "workflow": workflow, "channel": channel, "direction": direction}
+        if remote_number:
+            body["remoteNumber"] = remote_number
+        if local_number:
+            body["localNumber"] = local_number
+        return await self._req("POST", "/v1/calls", json=body)
+
+    async def lookup_number(self, number: str) -> dict:
+        """Which agent answers calls to this number (Admin -> Phone)."""
+        return await self._req("GET", "/v1/phone/lookup", params={"number": number})
 
     async def update_call(self, call_id: str, **fields: Any) -> dict:
         return await self._req("PATCH", f"/v1/calls/{call_id}", json=fields)

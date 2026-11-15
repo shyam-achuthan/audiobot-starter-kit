@@ -30,6 +30,7 @@ from livekit.agents import (
 from livekit.plugins import silero
 
 import agent_config
+import phone
 import pipeline
 from api_client import ApiClient, ApiError
 from languages import SUPPORTED, TURN_DETECTOR_LANGS, normalize
@@ -75,14 +76,39 @@ async def entrypoint(ctx: JobContext) -> None:
     await ctx.connect()
 
     participant = await ctx.wait_for_participant()
+    info = phone.describe(participant)
+    api = ApiClient()
+
+    if info.channel == "sip" and info.direction == "outbound":
+        # The callee's phone is still ringing; greet only once they pick up.
+        if not await phone.wait_until_answered(ctx.room, participant):
+            logger.info("outbound call in %s was not answered", ctx.room.name)
+            await api.aclose()
+            ctx.shutdown(reason="not answered")
+            return
+
     workflow = workflow_of(participant.metadata)
-    logger.info("call started room=%s workflow=%s", ctx.room.name, workflow)
+    if info.channel == "sip" and info.direction == "inbound":
+        # Which agent answers depends on the number that was dialled (Admin -> Phone).
+        try:
+            workflow = (await api.lookup_number(info.local_number or ""))["workflow"]
+        except ApiError as e:
+            logger.warning("number lookup failed, router answers: %s", e.message)
+            workflow = "router"
+        workflow = workflow if workflow in AGENTS else "router"
+    logger.info("call started room=%s workflow=%s channel=%s direction=%s", ctx.room.name, workflow,
+                info.channel, info.direction)
 
     # ---- call record (the call still works if the API is down; it just isn't stored) ----
-    api = ApiClient()
-    call = CallData(api=api, room=ctx.room.name, workflow=workflow, settings=settings)
+    call = CallData(api=api, room=ctx.room.name, workflow=workflow, settings=settings,
+                    channel=info.channel, direction=info.direction, outbound_context=info.context,
+                    ticket_ref=info.ticket_ref, sip_identity=info.sip_identity,
+                    caller_phone=info.remote_number if info.channel == "sip" else None)
     try:
-        call.call_id = (await api.create_call(ctx.room.name, workflow))["id"]
+        call.call_id = (await api.create_call(
+            ctx.room.name, workflow, channel=info.channel, direction=info.direction,
+            remote_number=info.remote_number, local_number=info.local_number,
+        ))["id"]
     except ApiError as e:
         logger.error("could not create call record: %s", e.message)
     try:

@@ -8,6 +8,8 @@ dashboard (see agent_config.py).
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import os
 
 from languages import SUPPORTED
@@ -104,10 +106,33 @@ def business_context(profile: dict | None) -> str:
     return "\n".join(lines)
 
 
+def _now_ist() -> str:
+    now = datetime.now(timezone(timedelta(hours=5, minutes=30)))
+    return now.strftime("%A %d %B %Y, %H:%M IST")
+
+
+def phone_rules(phone: dict | None) -> str:
+    """Extra rules for phone calls (none for web calls)."""
+    if not phone:
+        return ""
+    lines = ["\nThis is a phone call."]
+    if phone.get("direction") == "outbound":
+        lines.append("You called the customer; they did not call you. Be brief and respectful of their time. "
+                     "If it is a bad time, offer to call back later and book it.")
+        if phone.get("context"):
+            lines.append(f"Reason for the call: {phone['context']}")
+    elif phone.get("caller_phone"):
+        lines.append(f"The caller is calling from {phone['caller_phone']}. When you need their number, ask "
+                     "whether this is the best number to reach them instead of asking them to read it out.")
+    lines.append("If they ask for a person, tell them you are connecting them and use transfer_to_human.")
+    return "\n".join(lines) + "\n"
+
+
 def instructions_for(workflow: str, language: str | None = None, profile: dict | None = None,
-                     role: str | None = None) -> str:
+                     role: str | None = None, phone: dict | None = None) -> str:
     role = role or ROLES.get(workflow, ROLES["router"])
     text = f"{business_context(profile)}\n\n{role}\n\n{VOICE_RULES}"
+    text += f"\nCurrent date and time: {_now_ist()}.\n" + phone_rules(phone)
     if language:
         name = SUPPORTED.get(language, language)
         script = "" if language == "en-IN" else " (native script)"
@@ -130,6 +155,13 @@ RECORDING_ASK = (
     " Then, in one short sentence, ask whether it is okay to record this call for quality. When they "
     "answer, call set_recording_consent before continuing."
 )
+
+
+def outbound_greeting(name: str | None, context: str | None) -> str:
+    who = f"Greet {name} by name" if name else "Greet the person"
+    why = f" calling about: {context}" if context else ""
+    return (f"{who}, say you are an AI assistant from the business{why}. Then ask whether now is a "
+            "good time to talk. Keep it to two short sentences.")
 
 
 def handoff_for(summary: str) -> str:

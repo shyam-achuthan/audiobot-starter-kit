@@ -34,6 +34,7 @@ class AgentSettings:
     allow_interruptions: bool
     interruption_min_duration: float
     recording_consent: str  # off | notice | ask
+    transfer_number: str  # human number for live transfers on phone calls ('' = none)
 
     def to_api(self) -> dict:
         """camelCase keys, as stored by the API."""
@@ -46,6 +47,7 @@ class AgentSettings:
             "allowInterruptions": d["allow_interruptions"],
             "interruptionMinDuration": d["interruption_min_duration"],
             "recordingConsent": d["recording_consent"],
+            "transferNumber": d["transfer_number"],
         }
 
 
@@ -61,6 +63,7 @@ def builtin(workflow: str, s: Settings) -> AgentSettings:
         allow_interruptions=True,
         interruption_min_duration=s.interruption_min_duration,
         recording_consent=s.recording_consent if s.recording_consent in CONSENT_MODES else "notice",
+        transfer_number=s.transfer_number,
     )
 
 
@@ -95,6 +98,7 @@ def resolve(workflow: str, s: Settings, overrides: dict | None) -> AgentSettings
         allow_interruptions=o["allowInterruptions"] if isinstance(o.get("allowInterruptions"), bool) else base.allow_interruptions,
         interruption_min_duration=pick(_num(o.get("interruptionMinDuration"), 0.1, 2), base.interruption_min_duration),
         recording_consent=o["recordingConsent"] if o.get("recordingConsent") in CONSENT_MODES else base.recording_consent,
+        transfer_number=_text(o, "transferNumber", base.transfer_number),
     )
 
 
