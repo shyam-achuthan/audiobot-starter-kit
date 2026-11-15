@@ -1,0 +1,16 @@
+# baresip config for the test phone (see infra/testphone/Dockerfile)
+sip_listen        0.0.0.0:5070
+audio_source      aufile,/audio/caller.wav
+audio_player      aufile,/audio/heard.wav
+audio_alert       aufile,/dev/null
+ausrc_srate       16000
+auplay_srate      16000
+ausrc_channels    1
+auplay_channels   1
+module_path       /usr/lib/baresip/modules
+module            stdio.so
+module            g711.so
+module            aufile.so
+module            account.so
+module            menu.so
+module_app        contact.so

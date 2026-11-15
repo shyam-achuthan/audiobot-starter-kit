@@ -1,0 +1,3 @@
+<sip:testphone@127.0.0.1>;regint=0;answermode=auto
+# Answers outbound test calls to this number (see agent/scripts/sip_audio.py)
+<sip:+919845012345@127.0.0.1>;regint=0;answermode=auto

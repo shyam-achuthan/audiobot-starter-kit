@@ -1,7 +1,7 @@
 name: audiobots
 
 # Core services have no profile and always start.
-# Optional profiles: recording, observability, crm (built); sip, local-models (later phases).
+# Optional profiles: recording, observability, crm, sip (built); local-models (later phase).
 
 x-livekit-env: &livekit-env
   LIVEKIT_URL: ws://livekit:7880
@@ -146,6 +146,18 @@ services:
       S3_BUCKET_RECORDINGS: ${S3_BUCKET_RECORDINGS}
       LANGFUSE_PUBLIC_URL: ${LANGFUSE_PUBLIC_URL:-}
       LANGFUSE_PROJECT_ID: ${LANGFUSE_PROJECT_ID:-audiobots-calls}
+      # Phone calls (Phase 7): LiveKit SIP bridge (sip profile) and your SIP trunk.
+      SIP_PUBLIC_HOST: ${SIP_PUBLIC_HOST:-${LIVEKIT_NODE_IP}}
+      SIP_INBOUND_USERNAME: ${SIP_INBOUND_USERNAME:-}
+      SIP_INBOUND_PASSWORD: ${SIP_INBOUND_PASSWORD:-}
+      SIP_INBOUND_ALLOWED: ${SIP_INBOUND_ALLOWED:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+      SIP_OUTBOUND_ADDRESS: ${SIP_OUTBOUND_ADDRESS:-}
+      SIP_OUTBOUND_NUMBER: ${SIP_OUTBOUND_NUMBER:-}
+      SIP_OUTBOUND_USERNAME: ${SIP_OUTBOUND_USERNAME:-}
+      SIP_OUTBOUND_PASSWORD: ${SIP_OUTBOUND_PASSWORD:-}
+      SIP_OUTBOUND_TRANSPORT: ${SIP_OUTBOUND_TRANSPORT:-udp}
+      CALLBACK_MAX_ATTEMPTS: ${CALLBACK_MAX_ATTEMPTS:-3}
+      CALLBACK_RETRY_MINUTES: ${CALLBACK_RETRY_MINUTES:-30}
     ports:
       - "4000:4000"
     depends_on:
@@ -177,6 +189,9 @@ services:
       PREEMPTIVE_GENERATION: ${PREEMPTIVE_GENERATION:-true}
       STT_FLUSH_SIGNAL: ${STT_FLUSH_SIGNAL:-true}
       STT_LIVENESS_TIMEOUT: ${STT_LIVENESS_TIMEOUT:-30}
+      # Built-in defaults for agents without an override in Admin -> Agents
+      RECORDING_CONSENT: ${RECORDING_CONSENT:-notice}
+      TRANSFER_NUMBER: ${TRANSFER_NUMBER:-}
       VAD_MIN_SILENCE: ${VAD_MIN_SILENCE:-0.25}
     depends_on:
       livekit:
@@ -428,6 +443,44 @@ services:
       start_period: 60s
       retries: 20
     restart: unless-stopped
+
+  # ---------------------------------------------------------------- sip profile (Phase 7)
+  # LiveKit SIP bridge: phone calls in (numbers on Admin -> Phone) and out (callbacks, API).
+  # Advertises LIVEKIT_NODE_IP so softphones on this Mac / LAN and the test phone can reach it.
+  sip:
+    image: livekit/sip:v1.22.0
+    profiles: [sip]
+    environment:
+      SIP_CONFIG_BODY: |
+        log_level: info
+        api_key: ${LIVEKIT_API_KEY}
+        api_secret: ${LIVEKIT_API_SECRET}
+        ws_url: ws://livekit:7880
+        redis:
+          address: redis:6379
+        sip_port: 5060
+        rtp_port: 10000-10100
+        use_external_ip: false
+        nat_1_to_1_ip: ${LIVEKIT_NODE_IP}
+        health_port: 8080
+    ports:
+      - "5060:5060/udp"
+      - "5060:5060/tcp"
+      - "10000-10100:10000-10100/udp"
+    depends_on:
+      livekit:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Scripted "phone" for tests (baresip from Debian): auto-answers outbound calls and can dial in.
+  # Only started by the SIP test scripts: docker compose --profile sip-test ...
+  testphone:
+    build: ./infra/testphone
+    profiles: [sip-test]
+    volumes:
+      - ./infra/testphone/audio:/audio
 
 volumes:
   pgdata:
