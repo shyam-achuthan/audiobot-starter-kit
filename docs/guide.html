@@ -773,6 +773,7 @@ curl -s localhost:4000/v1/tickets/1004  -H "Authorization: Bearer $T"</pre></div
     <tr><td><code>VERTEXAI_PROJECT</code> / <code>_LOCATION</code></td><td>empty / asia-south1</td><td>Optional Vertex AI</td></tr>
     <tr><td><code>STT_MODEL</code> / <code>STT_MODE</code></td><td>saaras:v4 / transcribe</td><td>Modes: <code>transcribe</code>, <code>codemix</code>, <code>translit</code>, <code>verbatim</code></td></tr>
     <tr><td><code>STT_FLUSH_SIGNAL</code></td><td>true</td><td>Ask Sarvam to finalize as soon as the turn ends</td></tr>
+    <tr><td><code>STT_LIVENESS_TIMEOUT</code></td><td>30</td><td>Seconds with no reply from Sarvam (not even a pong) before the speech-to-text connection is treated as dead. Lower values drop healthy connections mid-call and lose caller audio.</td></tr>
     <tr><td><code>TTS_MODEL</code> / <code>TTS_SPEAKER</code></td><td>bulbul:v3 / priya</td><td>Any bulbul speaker, e.g. <code>kavya</code>, <code>rahul</code>, <code>amit</code></td></tr>
     <tr><td><code>LLM_MODEL</code></td><td>agent-fast</td><td>LiteLLM alias used by the agent</td></tr>
     <tr><td><code>VAD_MIN_SILENCE</code>, <code>ENDPOINTING_*</code>, <code>PREEMPTIVE_GENERATION</code></td><td>0.25, 0.3 / 1.2, true</td><td>Turn-taking (see <a href="#latency">Latency</a>)</td></tr>
