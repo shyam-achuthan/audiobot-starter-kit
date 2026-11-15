@@ -213,3 +213,17 @@ export function useDebounced<T>(value: T, ms = 300) {
 export function EmptyRow({ text }: { text: string }) {
   return <p className="px-4 py-8 text-center text-sm text-zinc-500">{text}</p>;
 }
+
+export type CrmLink = { name: string; label: string; url: string };
+
+/** "Open in Twenty CRM" / "Open in Chatwoot" links for a synced lead or ticket. */
+export function CrmLinks({ links }: { links?: CrmLink[] }) {
+  if (!links?.length) return null;
+  return (
+    <>
+      {links.map((l) => (
+        <span key={l.name}> · <a href={l.url} target="_blank" rel="noreferrer" className="underline">open in {l.label}</a></span>
+      ))}
+    </>
+  );
+}

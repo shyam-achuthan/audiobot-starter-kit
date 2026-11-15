@@ -15,7 +15,9 @@ const TABS = [
 
 export function AdminNav({ owner }: { owner: boolean }) {
   const path = usePathname();
-  const tabs = owner ? [...TABS, { href: '/admin/users', label: 'Users' }] : TABS;
+  const tabs = owner
+    ? [...TABS, { href: '/admin/integrations', label: 'Integrations' }, { href: '/admin/users', label: 'Users' }]
+    : TABS;
   const active = (href: string) => (href === '/admin' ? path === '/admin' : path.startsWith(href));
   return (
     <nav aria-label="Admin" className="-mx-1 flex max-w-full gap-1 overflow-x-auto rounded-lg bg-zinc-100 p-1 text-sm dark:bg-zinc-900">

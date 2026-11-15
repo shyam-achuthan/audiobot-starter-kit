@@ -3,14 +3,16 @@
 import Link from 'next/link';
 import { use, useEffect, useState } from 'react';
 import {
-  Button, Card, Field, LANGUAGE_LABELS, LEAD_STATUS_LABELS, Notice, Select, Textarea, adminApi, fmtDate, jsonInit,
+  Button, Card, CrmLinks, Field, LANGUAGE_LABELS, LEAD_STATUS_LABELS, Notice, Select, Textarea, adminApi, fmtDate, jsonInit,
 } from '../../_ui';
+import type { CrmLink } from '../../_ui';
 
 type Lead = {
   id: string; createdAt: string; updatedAt: string; callId: string | null; name: string | null; phone: string | null;
   email: string | null; company: string | null; need: string | null; budget: string | null; authority: string | null;
   timeline: string | null; teamSize: string | null; score: number | null; status: string;
   preferredCallbackTime: string | null; language: string | null; notes: string | null;
+  crmLinks?: CrmLink[];
 };
 
 const FIELDS: [keyof Lead, string][] = [
@@ -58,6 +60,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
           {lead.language ? ` · ${LANGUAGE_LABELS[lead.language] ?? lead.language}` : ''}
           {lead.score != null ? ` · score ${lead.score}/100` : ''}
           {lead.callId && <> · <Link href={`/admin/calls/${lead.callId}`} className="underline">open call</Link></>}
+          <CrmLinks links={lead.crmLinks} />
         </p>
       </div>
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">

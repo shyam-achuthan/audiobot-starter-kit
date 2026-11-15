@@ -3,14 +3,16 @@
 import Link from 'next/link';
 import { use, useEffect, useState } from 'react';
 import {
-  Button, Card, Field, LANGUAGE_LABELS, Notice, Select, TICKET_STATUS_LABELS, Textarea, adminApi, fmtDate, jsonInit,
+  Button, Card, CrmLinks, Field, LANGUAGE_LABELS, Notice, Select, TICKET_STATUS_LABELS, Textarea, adminApi, fmtDate, jsonInit,
 } from '../../_ui';
+import type { CrmLink } from '../../_ui';
 
 type Ticket = {
   id: string; ref: string; createdAt: string; updatedAt: string; type: string; subject: string;
   description: string | null; priority: string; status: string; contactName: string | null;
   contactPhone: string | null; contactEmail: string | null; preferredCallbackTime: string | null;
   language: string | null; callId: string | null; leadId: string | null;
+  crmLinks?: CrmLink[];
 };
 
 export default function TicketDetailPage({ params }: { params: Promise<{ ref: string }> }) {
@@ -58,6 +60,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ ref: st
           {t.type === 'callback' ? 'Callback request' : 'Support ticket'} · opened {fmtDate(t.createdAt)}
           {t.callId && <> · <Link href={`/admin/calls/${t.callId}`} className="underline">open call</Link></>}
           {t.leadId && <> · <Link href={`/admin/leads/${t.leadId}`} className="underline">open lead</Link></>}
+          <CrmLinks links={t.crmLinks} />
         </p>
       </div>
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
