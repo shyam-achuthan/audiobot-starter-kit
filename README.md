@@ -38,6 +38,8 @@ Add provider keys to `.env` (`SARVAM_API_KEY`, `GEMINI_API_KEY`, …) and run `m
 
 **Phone calls (optional):** `make up-sip` starts the LiveKit SIP bridge. Add numbers under Admin → Phone and pick which agent answers each; point your SIP trunk (or a softphone) at the address shown there. With `SIP_OUTBOUND_*` set in `.env`, agents call customers back ("Call now" on tickets, scheduled callbacks, or `POST /v1/calls/outbound`) within calling hours and never to numbers on the do-not-call list, and can transfer a caller to a person. `make sip-test` runs a smoke test with a scripted test phone.
 
+**Website widget:** under Admin → Widgets, create a widget, list the websites allowed to use it, and paste the snippet (`<script src=".../widget.js" data-key="wk_..." async>`) into your site. Visitors get a voice button with live captions; per-widget limits cap concurrent calls and call length.
+
 Then open `/admin/setup`: describe your business and add documents, FAQs or web pages to a knowledge base. Agents quote prices and policies only from that knowledge base. Each agent's instructions, LLM, voice and turn timing can be changed under **Agents**; changes apply to the next call. A sample pack for a fictional product is in [samples/knowledge](samples/knowledge).
 
 ### Notes

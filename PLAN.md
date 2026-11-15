@@ -25,7 +25,7 @@ Uses open-source parts wherever it can. Every provider can be swapped by config.
 | Bookings (v1) | **Callback requests only**: agents capture a preferred callback time as a high-priority callback ticket; no calendar |
 | Human handoff (until SIP) | **Callback ticket**: when a caller asks for a person, the agent confirms name and phone and books a high-priority callback |
 | Admin and demo | **Next.js** with Tailwind (small in-house UI kit and SVG charts, no component or chart library). Admin sign-in: email + password, sessions in Postgres |
-| Web widget | Small TypeScript bundle (Vite), embedded with one `<script>` tag |
+| Web widget | Small TypeScript bundle (Vite, Shadow DOM), embedded with one `<script>` tag. **Widgets page** in Admin: public key, allowed website origins, agent, colours, captions, concurrent-call and call-length caps. Public session endpoint checks the origin and rate-limits per IP and per widget; the old token endpoint serves only first-party pages |
 | Observability | **Langfuse v4** (self-hosted, `observability` profile, set up headless) for LLM traces via LiteLLM's OpenTelemetry callback; each call is one Langfuse session (`x-litellm-session-id` = call id). Plus per-stage latency metrics in Postgres |
 | Recording | LiveKit Egress (`recording` profile) writes one mixed **OGG/Opus** file per call to **RustFS** (S3-compatible, Apache-2.0; MinIO stopped publishing Docker images). **Consent is set per agent**: tell the caller and record unless they object (default), ask first, or off. The agent only mentions recording once the recorder confirms. **Retention** is an org setting (recordings and transcript text, in days; default keep forever) |
 | SIP trunk | **Decide later.** SIP is built generically (LiveKit SIP bridge, `sip` profile) and tested with a scripted softphone (baresip). Pick Exotel, Plivo or Tata before go-live |
@@ -159,7 +159,7 @@ Target **≤ 800 ms** from the user stopping to the bot's first audio. Stretch g
 | 5 ✅ | **Integrations**: outbound webhooks with retries, Twenty and Chatwoot sync (`crm` profile) | A lead shows up in Twenty and a ticket in Chatwoot automatically |
 | 6 ✅ | **Recording and observability**: Egress to RustFS, consent flow, Langfuse traces | Every call has a recording (if consented) and a full LLM trace |
 | 7 ✅ | **SIP**: `livekit-sip`, inbound dispatch rules, outbound calls, warm transfer. Tested with a softphone | A call from Linphone/Zoiper goes through the same workflows. The SIP trunk is plugged in once chosen |
-| 8 | **Widget hardening**: embed snippet, theming, mic permission UX, live transcript, reconnect, allowed-origin tokens | Pasting the snippet into any site works securely |
+| 8 ✅ | **Widget hardening**: embed snippet, theming, mic permission UX, live transcript, reconnect, allowed-origin tokens | Pasting the snippet into any site works securely |
 | 9 | **Self-host readiness**: `local-models` profile (vLLM with Qwen3/Sarvam-M, IndicConformer, Indic Parler/Kokoro), GPU compose override | The hosted to self-hosted swap is done by config alone, benchmarked against hosted |
 
 ---
