@@ -41,6 +41,25 @@ SCENARIOS: dict[str, dict] = {
         ],
         "expect": {"ticket_type": "support"},
     },
+    # Recording consent (Phase 6). Needs the recording profile (make up-rec).
+    # Default "notice" mode: the caller objects, so the recording must be stopped and deleted.
+    "consent_no": {
+        "workflow": "support",
+        "lines": [
+            ("en-IN", "Please don't record this call."),
+            ("en-IN", "My invoices are not reaching my customers by email. That's all I wanted to ask, thanks, bye."),
+        ],
+        "expect": {"recording": "declined"},
+    },
+    # Run with the Support agent's consent set to "Ask first": the caller agrees, so it is recorded.
+    "consent_yes": {
+        "workflow": "support",
+        "lines": [
+            ("en-IN", "Yes, you can record it."),
+            ("en-IN", "My invoices are not reaching my customers by email. That's all I wanted to ask, thanks, bye."),
+        ],
+        "expect": {"recording": "ready"},
+    },
     "lead": {
         "workflow": "lead_qualification",
         "lines": [
@@ -244,11 +263,24 @@ async def main(name: str) -> int:
         for t in call.get("tickets", []):
             print(f"ticket: {t['ref']} {t['type']} {t['priority']} '{t['subject']}' cb={t['preferredCallbackTime']}")
 
+        if exp_rec := sc["expect"].get("recording"):
+            # The file is uploaded a few seconds after the call ends.
+            for _ in range(30):
+                rec = (call.get("recording") or {}).get("status")
+                if rec not in ("recording", "processing"):
+                    break
+                await asyncio.sleep(1)
+                async with http.get(f"{API_URL}/v1/calls/{call_id}", headers=headers) as r:
+                    call = await r.json()
+            print("recording:", call.get("recording"))
+
         ok, exp = True, sc["expect"]
         if exp.get("lead") and not call.get("leads"):
             ok = False; print("FAIL: expected a lead")
         if exp.get("ticket_type") and not any(t["type"] == exp["ticket_type"] for t in call.get("tickets", [])):
             ok = False; print(f"FAIL: expected a {exp['ticket_type']} ticket")
+        if exp.get("recording") and (call.get("recording") or {}).get("status") != exp["recording"]:
+            ok = False; print(f"FAIL: expected recording {exp['recording']}")
         if exp.get("path") and call["agentPath"][: len(exp["path"])] != exp["path"]:
             ok = False; print(f"FAIL: expected path {exp['path']}")
         said = " ".join((t.get("agent_text") or "") for t in turns).lower()
