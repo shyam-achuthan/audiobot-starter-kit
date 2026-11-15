@@ -1,9 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
+import { Op } from 'sequelize';
 import { strongerOutcome } from '../common/outcome';
 import { normalizePhone } from '../common/phone';
 import { Call, Lead } from '../database/models';
-import { UpsertLeadDto } from './leads.dto';
+import { and, dateRange, paging, search } from '../common/list-query';
+import { ListLeadsQuery, UpsertLeadDto } from './leads.dto';
 
 /** Drops undefined/empty values so partial updates never blank out saved fields. */
 function clean<T extends object>(o: T): Partial<T> {
@@ -53,8 +55,17 @@ export class LeadsService {
     return lead;
   }
 
-  list(limit = 50) {
-    return this.leads.findAll({ order: [['createdAt', 'DESC']], limit: Math.min(limit, 200) });
+  async list(q: ListLeadsQuery) {
+    const where = and(
+      q.status && { status: q.status },
+      q.minScore !== undefined && { score: { [Op.gte]: q.minScore } },
+      search(q.q, ['name', 'phone', 'email', 'company', 'need']),
+      dateRange('createdAt', q),
+    );
+    const { rows, count } = await this.leads.findAndCountAll({
+      where, order: [['createdAt', q.order === 'asc' ? 'ASC' : 'DESC']], ...paging(q),
+    });
+    return { items: rows, total: count };
   }
 
   /** Mirror caller identity + outcome onto the call record. */

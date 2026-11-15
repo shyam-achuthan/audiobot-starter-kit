@@ -1,4 +1,6 @@
+import { Type } from 'class-transformer';
 import { IsEmail, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
+import { ListQuery } from '../common/list-query';
 import { LEAD_STATUSES } from '../database/models';
 
 export class UpsertLeadDto {
@@ -17,4 +19,9 @@ export class UpsertLeadDto {
   @IsOptional() @IsString() @MaxLength(200) preferredCallbackTime?: string;
   @IsOptional() @IsString() @MaxLength(8) language?: string;
   @IsOptional() @IsString() @MaxLength(4000) notes?: string;
+}
+
+export class ListLeadsQuery extends ListQuery {
+  @IsOptional() @IsIn(LEAD_STATUSES) status?: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(100) minScore?: number;
 }

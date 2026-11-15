@@ -1,9 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
+import { Op } from 'sequelize';
 import { strongerOutcome } from '../common/outcome';
 import { normalizePhone } from '../common/phone';
 import { Call, Ticket } from '../database/models';
-import { CreateTicketDto, UpdateTicketDto } from './tickets.dto';
+import { and, dateRange, paging, search } from '../common/list-query';
+import { CreateTicketDto, ListTicketsQuery, UpdateTicketDto } from './tickets.dto';
 
 /** Accepts "TKT-1042", "tkt 1042", "1042" or a UUID. */
 export function parseTicketRef(ref: string): { number?: number; id?: string } {
@@ -71,8 +73,24 @@ export class TicketsService {
     });
   }
 
-  list(limit = 50) {
-    return this.tickets.findAll({ order: [['createdAt', 'DESC']], limit: Math.min(limit, 200) });
+  async list(q: ListTicketsQuery) {
+    const digits = q.q?.replace(/\D/g, '');
+    const where = and(
+      q.status === 'active' ? { status: ['open', 'in_progress'] } : q.status && { status: q.status },
+      q.type && { type: q.type },
+      q.priority && { priority: q.priority },
+      q.q && {
+        [Op.or]: [
+          search(q.q, ['subject', 'description', 'contactName', 'contactPhone', 'contactEmail'])!,
+          ...(digits && digits.length <= 9 ? [{ number: Number(digits) }] : []),
+        ],
+      },
+      dateRange('createdAt', q),
+    );
+    const { rows, count } = await this.tickets.findAndCountAll({
+      where, order: [['createdAt', q.order === 'asc' ? 'ASC' : 'DESC']], ...paging(q),
+    });
+    return { items: rows, total: count };
   }
 
   async update(ref: string, dto: UpdateTicketDto) {

@@ -1,8 +1,8 @@
 import {
-  Body, Controller, DefaultValuePipe, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards,
+  Body, Controller, Get, Param, Patch, Post, Query, UseGuards,
 } from '@nestjs/common';
 import { AgentOnly, ApiAuthGuard } from '../auth/auth.guard';
-import { CreateTicketDto, UpdateTicketDto } from './tickets.dto';
+import { CreateTicketDto, UpdateTicketDto, ListTicketsQuery } from './tickets.dto';
 import { TicketsService } from './tickets.service';
 
 @Controller('v1/tickets')
@@ -17,8 +17,8 @@ export class TicketsController {
   }
 
   @Get()
-  list(@Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number) {
-    return this.tickets.list(limit);
+  list(@Query() q: ListTicketsQuery) {
+    return this.tickets.list(q);
   }
 
   // Declared before ':ref' so "lookup" isn't treated as a ticket reference.

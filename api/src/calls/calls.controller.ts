@@ -1,8 +1,8 @@
 import {
-  Body, Controller, DefaultValuePipe, Get, Param, ParseIntPipe, ParseUUIDPipe, Patch, Post, Query, UseGuards,
+  Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards,
 } from '@nestjs/common';
 import { AgentOnly, ApiAuthGuard } from '../auth/auth.guard';
-import { CreateCallDto, CreateTurnDto, UpdateCallDto } from './calls.dto';
+import { CreateCallDto, CreateTurnDto, UpdateCallDto, ListCallsQuery } from './calls.dto';
 import { CallsService } from './calls.service';
 
 @Controller('v1/calls')
@@ -17,8 +17,8 @@ export class CallsController {
   }
 
   @Get()
-  list(@Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number) {
-    return this.calls.list(limit);
+  list(@Query() q: ListCallsQuery) {
+    return this.calls.list(q);
   }
 
   @Get(':id')

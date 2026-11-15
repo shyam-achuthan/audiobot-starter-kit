@@ -2,6 +2,7 @@ import {
   ArrayMaxSize, IsArray, IsBoolean, IsEmail, IsIn, IsInt, IsOptional, IsString, MaxLength, Min,
 } from 'class-validator';
 import { WORKFLOWS } from '../config';
+import { ListQuery } from '../common/list-query';
 import { CALL_OUTCOMES, CALL_STATUSES } from '../database/models';
 
 export class CreateCallDto {
@@ -33,4 +34,11 @@ export class CreateTurnDto {
   @IsOptional() @IsInt() llmTtftMs?: number;
   @IsOptional() @IsInt() ttsTtfbMs?: number;
   @IsOptional() @IsInt() e2eMs?: number;
+}
+
+export class ListCallsQuery extends ListQuery {
+  @IsOptional() @IsIn(CALL_STATUSES) status?: (typeof CALL_STATUSES)[number];
+  @IsOptional() @IsIn(CALL_OUTCOMES) outcome?: (typeof CALL_OUTCOMES)[number];
+  @IsOptional() @IsIn(WORKFLOWS) workflow?: string;
+  @IsOptional() @IsIn(['web', 'sip']) channel?: string;
 }

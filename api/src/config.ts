@@ -23,6 +23,8 @@ export const config = {
     apiKey: required('LIVEKIT_API_KEY'),
     apiSecret: required('LIVEKIT_API_SECRET'),
   },
+  // Day boundaries for dashboard charts.
+  dashboardTimezone: process.env.DASHBOARD_TIMEZONE ?? 'Asia/Kolkata',
   admin: {
     // Optional: creates the first owner account on startup when no accounts exist yet.
     email: process.env.ADMIN_EMAIL ?? '',

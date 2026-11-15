@@ -36,15 +36,20 @@ export class EmbeddingsService {
     return out;
   }
 
-  /** Embedding aliases configured in infra/litellm/config.yaml (names starting with "embed-"). */
+  /** Every model alias configured in infra/litellm/config.yaml. Throws if LiteLLM is unreachable. */
+  async allModels(): Promise<string[]> {
+    const res = await fetch(`${config.litellm.url}/v1/models`, {
+      headers: this.headers(),
+      signal: AbortSignal.timeout(5000),
+    });
+    const data = (await res.json()) as { data?: { id: string }[] };
+    return (data.data ?? []).map((m) => m.id);
+  }
+
+  /** Embedding aliases (names starting with "embed-"). */
   async models(): Promise<string[]> {
     try {
-      const res = await fetch(`${config.litellm.url}/v1/models`, {
-        headers: this.headers(),
-        signal: AbortSignal.timeout(5000),
-      });
-      const data = (await res.json()) as { data?: { id: string }[] };
-      return (data.data ?? []).map((m) => m.id).filter((id) => id.startsWith('embed-')).sort();
+      return (await this.allModels()).filter((id) => id.startsWith('embed-')).sort();
     } catch (e) {
       this.log.warn(`Could not list LiteLLM models: ${(e as Error).message}`);
       return ['embed-gemini'];

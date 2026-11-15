@@ -1,4 +1,5 @@
 import { IsEmail, IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { ListQuery } from '../common/list-query';
 import { TICKET_PRIORITIES, TICKET_STATUSES, TICKET_TYPES } from '../database/models';
 
 export class CreateTicketDto {
@@ -19,4 +20,10 @@ export class UpdateTicketDto {
   @IsOptional() @IsIn(TICKET_STATUSES) status?: string;
   @IsOptional() @IsIn(TICKET_PRIORITIES) priority?: string;
   @IsOptional() @IsString() @MaxLength(4000) description?: string;
+}
+
+export class ListTicketsQuery extends ListQuery {
+  @IsOptional() @IsIn([...TICKET_STATUSES, 'active']) status?: string; // active = open + in_progress
+  @IsOptional() @IsIn(TICKET_TYPES) type?: string;
+  @IsOptional() @IsIn(TICKET_PRIORITIES) priority?: string;
 }

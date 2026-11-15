@@ -1,9 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { UniqueConstraintError } from 'sequelize';
+import { Op, UniqueConstraintError } from 'sequelize';
 import { normalizePhone } from '../common/phone';
 import { Call, CallTurn, Lead, Ticket } from '../database/models';
-import { CreateCallDto, CreateTurnDto, UpdateCallDto } from './calls.dto';
+import { and, dateRange, paging, search } from '../common/list-query';
+import { CreateCallDto, CreateTurnDto, ListCallsQuery, UpdateCallDto } from './calls.dto';
 
 function median(xs: number[]): number | null {
   if (!xs.length) return null;
@@ -49,8 +50,20 @@ export class CallsService {
     return call;
   }
 
-  list(limit = 50) {
-    return this.calls.findAll({ order: [['startedAt', 'DESC']], limit: Math.min(limit, 200) });
+  async list(q: ListCallsQuery) {
+    const where = and(
+      q.status && { status: q.status },
+      q.outcome && { outcome: q.outcome },
+      q.channel && { channel: q.channel },
+      // Calls that started in or passed through this workflow.
+      q.workflow && { agentPath: { [Op.contains]: [q.workflow] } },
+      search(q.q, ['callerName', 'callerPhone', 'callerEmail', 'room']),
+      dateRange('startedAt', q),
+    );
+    const { rows, count } = await this.calls.findAndCountAll({
+      where, order: [['startedAt', q.order === 'asc' ? 'ASC' : 'DESC']], ...paging(q),
+    });
+    return { items: rows, total: count };
   }
 
   async update(id: string, dto: UpdateCallDto) {

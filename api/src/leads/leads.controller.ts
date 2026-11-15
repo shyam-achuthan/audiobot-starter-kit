@@ -1,8 +1,8 @@
 import {
-  Body, Controller, DefaultValuePipe, Get, Param, ParseIntPipe, ParseUUIDPipe, Patch, Post, Query, UseGuards,
+  Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards,
 } from '@nestjs/common';
 import { AgentOnly, ApiAuthGuard } from '../auth/auth.guard';
-import { UpsertLeadDto } from './leads.dto';
+import { UpsertLeadDto, ListLeadsQuery } from './leads.dto';
 import { LeadsService } from './leads.service';
 
 @Controller('v1/leads')
@@ -17,8 +17,8 @@ export class LeadsController {
   }
 
   @Get()
-  list(@Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number) {
-    return this.leads.list(limit);
+  list(@Query() q: ListLeadsQuery) {
+    return this.leads.list(q);
   }
 
   @Get(':id')

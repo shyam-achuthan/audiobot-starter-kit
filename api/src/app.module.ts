@@ -1,5 +1,8 @@
 import { Module } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
+import { AgentsController } from './agents/agents.controller';
+import { AgentsService } from './agents/agents.service';
+import { StatsController } from './stats/stats.controller';
 import { AdminUsersController, AuthController } from './auth/auth.controller';
 import { ApiAuthGuard } from './auth/auth.guard';
 import { AuthService } from './auth/auth.service';
@@ -35,7 +38,8 @@ import { TicketsService } from './tickets/tickets.service';
   controllers: [
     HealthController, LivekitController, CallsController, LeadsController, TicketsController,
     KnowledgeController, ProfileController, AuthController, AdminUsersController,
+    AgentsController, StatsController,
   ],
-  providers: [AuthService, ApiAuthGuard, LivekitService, CallsService, LeadsService, TicketsService, KnowledgeService, EmbeddingsService],
+  providers: [AuthService, ApiAuthGuard, AgentsService, LivekitService, CallsService, LeadsService, TicketsService, KnowledgeService, EmbeddingsService],
 })
 export class AppModule {}
