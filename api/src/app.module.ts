@@ -21,6 +21,13 @@ import { LivekitService } from './livekit/livekit.service';
 import { ProfileController } from './profile/profile.controller';
 import { TicketsController } from './tickets/tickets.controller';
 import { TicketsService } from './tickets/tickets.service';
+import { ConnectorRegistry } from './integrations/connector-registry';
+import { ChatwootConnector } from './integrations/connectors/chatwoot';
+import { TwentyConnector } from './integrations/connectors/twenty';
+import { DeliveryWorker } from './integrations/delivery.worker';
+import { EventsService } from './integrations/events.service';
+import { ChatwootInboundController, IntegrationsController } from './integrations/integrations.controller';
+import { IntegrationsService } from './integrations/integrations.service';
 
 @Module({
   imports: [
@@ -38,8 +45,9 @@ import { TicketsService } from './tickets/tickets.service';
   controllers: [
     HealthController, LivekitController, CallsController, LeadsController, TicketsController,
     KnowledgeController, ProfileController, AuthController, AdminUsersController,
-    AgentsController, StatsController,
+    AgentsController, StatsController, IntegrationsController, ChatwootInboundController,
   ],
-  providers: [AuthService, ApiAuthGuard, AgentsService, LivekitService, CallsService, LeadsService, TicketsService, KnowledgeService, EmbeddingsService],
+  providers: [AuthService, ApiAuthGuard, AgentsService, LivekitService, CallsService, LeadsService, TicketsService, KnowledgeService, EmbeddingsService,
+    EventsService, DeliveryWorker, ConnectorRegistry, TwentyConnector, ChatwootConnector, IntegrationsService],
 })
 export class AppModule {}

@@ -31,6 +31,20 @@ export const config = {
     password: process.env.ADMIN_PASSWORD ?? '',
     sessionHours: Number(process.env.ADMIN_SESSION_HOURS ?? 168),
   },
+  publicWebUrl: (process.env.PUBLIC_WEB_URL ?? 'http://localhost:3000').replace(/\/$/, ''),
+  twenty: {
+    url: (process.env.TWENTY_URL ?? 'http://twenty-server:3000').replace(/\/$/, ''),
+    publicUrl: (process.env.TWENTY_PUBLIC_URL ?? 'http://localhost:3020').replace(/\/$/, ''),
+    apiKey: process.env.TWENTY_API_KEY ?? '',
+  },
+  chatwoot: {
+    url: (process.env.CHATWOOT_URL ?? 'http://chatwoot-web:3000').replace(/\/$/, ''),
+    publicUrl: (process.env.CHATWOOT_PUBLIC_URL ?? 'http://localhost:3030').replace(/\/$/, ''),
+    apiToken: process.env.CHATWOOT_API_TOKEN ?? '',
+    accountId: process.env.CHATWOOT_ACCOUNT_ID ?? '',
+    inboxId: process.env.CHATWOOT_INBOX_ID ?? '',
+    webhookToken: process.env.CHATWOOT_WEBHOOK_TOKEN ?? '',
+  },
   litellm: {
     url: process.env.LITELLM_URL ?? 'http://litellm:4000',
     apiKey: process.env.LITELLM_API_KEY ?? '',

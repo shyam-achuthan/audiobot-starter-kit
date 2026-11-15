@@ -85,6 +85,8 @@ export class Lead extends Model {
   @Column(DataType.TEXT) declare preferredCallbackTime: string | null;
   @Column(DataType.STRING(8)) declare language: string | null;
   @Column(DataType.TEXT) declare notes: string | null;
+  /** Ids in connected systems, e.g. { twenty: { personId, companyId, opportunityId, noteId } }. */
+  @Column({ type: DataType.JSONB, allowNull: false, defaultValue: {} }) declare external: Record<string, any>;
   @CreatedAt declare createdAt: Date;
   @UpdatedAt declare updatedAt: Date;
 }
@@ -108,6 +110,8 @@ export class Ticket extends Model {
   @Column(DataType.TEXT) declare contactEmail: string | null;
   @Column(DataType.TEXT) declare preferredCallbackTime: string | null;
   @Column(DataType.STRING(8)) declare language: string | null;
+  /** Ids in connected systems, e.g. { chatwoot: { contactId, conversationId } }. */
+  @Column({ type: DataType.JSONB, allowNull: false, defaultValue: {} }) declare external: Record<string, any>;
   @CreatedAt declare createdAt: Date;
   @UpdatedAt declare updatedAt: Date;
 
@@ -218,6 +222,64 @@ export class AgentConfig extends Model {
   @UpdatedAt declare updatedAt: Date;
 }
 
+export const EVENT_TYPES = [
+  'call.started', 'call.ended', 'lead.created', 'lead.updated', 'ticket.created', 'ticket.updated',
+] as const;
+export type EventType = (typeof EVENT_TYPES)[number];
+export const CONNECTORS = ['twenty', 'chatwoot'] as const;
+export type Connector = (typeof CONNECTORS)[number];
+export const DELIVERY_STATUSES = ['pending', 'sending', 'succeeded', 'dead'] as const;
+
+@Table({ tableName: 'webhook_endpoints', underscored: true })
+export class WebhookEndpoint extends Model {
+  @Column({ type: DataType.UUID, primaryKey: true, defaultValue: DataType.UUIDV4 }) declare id: string;
+  @Column({ type: DataType.TEXT, allowNull: false }) declare name: string;
+  @Column({ type: DataType.TEXT, allowNull: false }) declare url: string;
+  @Column({ type: DataType.TEXT, allowNull: false }) declare secret: string;
+  @Column({ type: DataType.JSONB, allowNull: false, defaultValue: [] }) declare events: string[];
+  @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: true }) declare enabled: boolean;
+  @Column(DataType.TEXT) declare createdBy: string | null;
+  @CreatedAt declare createdAt: Date;
+  @UpdatedAt declare updatedAt: Date;
+
+  /** The signing secret is only returned by the dedicated reveal endpoint. */
+  toJSON() {
+    const { secret, ...rest } = this.get({ plain: true }) as Record<string, unknown>;
+    return { ...rest, secretHint: typeof secret === 'string' ? `${secret.slice(0, 10)}…` : null };
+  }
+}
+
+@Table({ tableName: 'events', underscored: true, updatedAt: false })
+export class OutboxEvent extends Model {
+  @Column({ type: DataType.UUID, primaryKey: true, defaultValue: DataType.UUIDV4 }) declare id: string;
+  @Column({ type: DataType.STRING(48), allowNull: false }) declare type: string;
+  @Column({ type: DataType.TEXT, allowNull: false }) declare subject: string;
+  @Column({ type: DataType.JSONB, allowNull: false }) declare payload: Record<string, unknown>;
+  @CreatedAt declare createdAt: Date;
+}
+
+@Table({ tableName: 'webhook_deliveries', underscored: true })
+export class WebhookDelivery extends Model {
+  @Column({ type: DataType.BIGINT, primaryKey: true, autoIncrement: true }) declare id: string;
+  @ForeignKey(() => OutboxEvent) @Column({ type: DataType.UUID, allowNull: false }) declare eventId: string;
+  @BelongsTo(() => OutboxEvent) declare event?: OutboxEvent;
+  @ForeignKey(() => WebhookEndpoint) @Column(DataType.UUID) declare endpointId: string | null;
+  @BelongsTo(() => WebhookEndpoint) declare endpoint?: WebhookEndpoint;
+  @Column(DataType.STRING(16)) declare connector: string | null;
+  @Column({ type: DataType.STRING(12), allowNull: false, defaultValue: 'pending' }) declare status: string;
+  @Column({ type: DataType.INTEGER, allowNull: false, defaultValue: 0 }) declare attempts: number;
+  @Column({ type: DataType.DATE, allowNull: false, defaultValue: DataType.NOW }) declare nextAttemptAt: Date;
+  @Column(DataType.DATE) declare lockedUntil: Date | null;
+  @Column(DataType.INTEGER) declare lastStatusCode: number | null;
+  @Column(DataType.TEXT) declare lastError: string | null;
+  @Column(DataType.TEXT) declare lastResponse: string | null;
+  @Column(DataType.INTEGER) declare lastDurationMs: number | null;
+  @Column(DataType.DATE) declare deliveredAt: Date | null;
+  @CreatedAt declare createdAt: Date;
+  @UpdatedAt declare updatedAt: Date;
+}
+
 export const MODELS = [
   Call, CallTurn, Lead, Ticket, BusinessProfile, KnowledgeBase, KbDocument, AdminUser, AdminSession, AgentConfig,
+  WebhookEndpoint, OutboxEvent, WebhookDelivery,
 ];

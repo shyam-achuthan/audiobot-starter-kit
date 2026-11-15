@@ -4,6 +4,8 @@ import { Op, UniqueConstraintError } from 'sequelize';
 import { normalizePhone } from '../common/phone';
 import { Call, CallTurn, Lead, Ticket } from '../database/models';
 import { and, dateRange, paging, search } from '../common/list-query';
+import { EventsService } from '../integrations/events.service';
+import { callData } from '../integrations/payloads';
 import { CreateCallDto, CreateTurnDto, ListCallsQuery, UpdateCallDto } from './calls.dto';
 
 function median(xs: number[]): number | null {
@@ -18,16 +20,21 @@ export class CallsService {
   constructor(
     @InjectModel(Call) private readonly calls: typeof Call,
     @InjectModel(CallTurn) private readonly turns: typeof CallTurn,
+    private readonly events: EventsService,
   ) {}
 
   async create(dto: CreateCallDto) {
     try {
-      return await this.calls.create({
-        room: dto.room,
-        channel: dto.channel ?? 'web',
-        startWorkflow: dto.workflow,
-        agentPath: [dto.workflow],
-        language: dto.language ?? null,
+      return await this.events.tx(async (t) => {
+        const call = await this.calls.create({
+          room: dto.room,
+          channel: dto.channel ?? 'web',
+          startWorkflow: dto.workflow,
+          agentPath: [dto.workflow],
+          language: dto.language ?? null,
+        }, { transaction: t });
+        await this.events.emit('call.started', `call:${call.id}`, callData(call), t);
+        return call;
       });
     } catch (e) {
       if (e instanceof UniqueConstraintError) {
@@ -82,12 +89,17 @@ export class CallsService {
       patch.callerPhone = phone;
     }
     if (dto.status === 'ended' && call.status !== 'ended') {
-      const rows = await this.turns.findAll({ where: { callId: id }, attributes: ['e2eMs'] });
+      const rows = await this.turns.findAll({ where: { callId: id }, order: [['turnNo', 'ASC']] });
       patch.status = 'ended';
       patch.endedAt = new Date();
       patch.turnCount = rows.length;
       patch.medianE2eMs = median(rows.map((r) => r.e2eMs).filter((x): x is number => x != null));
       if (!call.outcome && !dto.outcome) patch.outcome = rows.length ? 'info_only' : 'abandoned';
+      return this.events.tx(async (t) => {
+        await call.update(patch, { transaction: t });
+        await this.events.emit('call.ended', `call:${call.id}`, callData(call, rows), t);
+        return call;
+      });
     }
     return call.update(patch);
   }

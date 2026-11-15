@@ -5,6 +5,8 @@ import { strongerOutcome } from '../common/outcome';
 import { normalizePhone } from '../common/phone';
 import { Call, Ticket } from '../database/models';
 import { and, dateRange, paging, search } from '../common/list-query';
+import { EventsService } from '../integrations/events.service';
+import { ticketData } from '../integrations/payloads';
 import { CreateTicketDto, ListTicketsQuery, UpdateTicketDto } from './tickets.dto';
 
 /** Accepts "TKT-1042", "tkt 1042", "1042" or a UUID. */
@@ -20,6 +22,7 @@ export class TicketsService {
   constructor(
     @InjectModel(Ticket) private readonly tickets: typeof Ticket,
     @InjectModel(Call) private readonly calls: typeof Call,
+    private readonly events: EventsService,
   ) {}
 
   async create(dto: CreateTicketDto) {
@@ -33,24 +36,27 @@ export class TicketsService {
       }
     }
     const type = dto.type ?? 'support';
-    const ticket = await this.tickets.create({
-      ...dto,
-      type,
-      contactPhone,
-      priority: dto.priority ?? (type === 'callback' ? 'high' : 'normal'),
-    });
+    return this.events.tx(async (t) => {
+      const ticket = await this.tickets.create({
+        ...dto,
+        type,
+        contactPhone,
+        priority: dto.priority ?? (type === 'callback' ? 'high' : 'normal'),
+      }, { transaction: t });
 
-    if (dto.callId) {
-      const call = await this.calls.findByPk(dto.callId);
-      if (call) {
-        await call.update({
-          outcome: strongerOutcome(call.outcome, type === 'callback' ? 'callback_requested' : 'ticket_created'),
-          callerName: call.callerName ?? dto.contactName ?? null,
-          callerPhone: call.callerPhone ?? contactPhone,
-        });
+      if (dto.callId) {
+        const call = await this.calls.findByPk(dto.callId, { transaction: t });
+        if (call) {
+          await call.update({
+            outcome: strongerOutcome(call.outcome, type === 'callback' ? 'callback_requested' : 'ticket_created'),
+            callerName: call.callerName ?? dto.contactName ?? null,
+            callerPhone: call.callerPhone ?? contactPhone,
+          }, { transaction: t });
+        }
       }
-    }
-    return ticket;
+      await this.events.emit('ticket.created', `ticket:${ticket.id}`, ticketData(ticket), t);
+      return ticket;
+    });
   }
 
   async find(ref: string) {
@@ -93,8 +99,18 @@ export class TicketsService {
     return { items: rows, total: count };
   }
 
-  async update(ref: string, dto: UpdateTicketDto) {
-    const ticket = await this.find(ref);
-    return ticket.update(dto);
+  async update(ref: string, dto: UpdateTicketDto, opts: { source?: string } = {}) {
+    const { id } = await this.find(ref);
+    return this.events.tx(async (t) => {
+      const ticket = (await this.tickets.findByPk(id, { transaction: t, lock: t.LOCK.UPDATE }))!;
+      ticket.set(Object.fromEntries(Object.entries(dto).filter(([, v]) => v !== undefined)));
+      const changed = (ticket.changed() || []) as string[];
+      if (!changed.length) return ticket;
+      await ticket.save({ transaction: t });
+      await this.events.emit('ticket.updated', `ticket:${ticket.id}`, {
+        ...ticketData(ticket), changed, ...(opts.source ? { source: opts.source } : {}),
+      }, t);
+      return ticket;
+    });
   }
 }

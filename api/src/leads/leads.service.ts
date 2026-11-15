@@ -1,10 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { Op } from 'sequelize';
+import { Op, Transaction } from 'sequelize';
 import { strongerOutcome } from '../common/outcome';
 import { normalizePhone } from '../common/phone';
 import { Call, Lead } from '../database/models';
 import { and, dateRange, paging, search } from '../common/list-query';
+import { EventsService } from '../integrations/events.service';
+import { leadData } from '../integrations/payloads';
 import { ListLeadsQuery, UpsertLeadDto } from './leads.dto';
 
 /** Drops undefined/empty values so partial updates never blank out saved fields. */
@@ -19,6 +21,7 @@ export class LeadsService {
   constructor(
     @InjectModel(Lead) private readonly leads: typeof Lead,
     @InjectModel(Call) private readonly calls: typeof Call,
+    private readonly events: EventsService,
   ) {}
 
   private normalize(dto: UpsertLeadDto): Partial<UpsertLeadDto> {
@@ -36,17 +39,28 @@ export class LeadsService {
   }
 
   async create(dto: UpsertLeadDto) {
-    const lead = await this.leads.create(this.normalize(dto));
-    await this.syncCall(lead);
-    return lead;
+    const data = this.normalize(dto);
+    return this.events.tx(async (t) => {
+      const lead = await this.leads.create(data, { transaction: t });
+      await this.syncCall(lead, t);
+      await this.events.emit('lead.created', `lead:${lead.id}`, leadData(lead), t);
+      return lead;
+    });
   }
 
   async update(id: string, dto: UpsertLeadDto) {
-    const lead = await this.leads.findByPk(id);
-    if (!lead) throw new NotFoundException('lead not found');
-    await lead.update(this.normalize(dto));
-    await this.syncCall(lead);
-    return lead;
+    const data = this.normalize(dto);
+    return this.events.tx(async (t) => {
+      const lead = await this.leads.findByPk(id, { transaction: t, lock: t.LOCK.UPDATE });
+      if (!lead) throw new NotFoundException('lead not found');
+      lead.set(data);
+      const changed = (lead.changed() || []) as string[];
+      if (!changed.length) return lead; // nothing new: no event
+      await lead.save({ transaction: t });
+      await this.syncCall(lead, t);
+      await this.events.emit('lead.updated', `lead:${lead.id}`, { ...leadData(lead), changed }, t);
+      return lead;
+    });
   }
 
   async get(id: string) {
@@ -69,15 +83,15 @@ export class LeadsService {
   }
 
   /** Mirror caller identity + outcome onto the call record. */
-  private async syncCall(lead: Lead) {
+  private async syncCall(lead: Lead, transaction: Transaction) {
     if (!lead.callId) return;
-    const call = await this.calls.findByPk(lead.callId);
+    const call = await this.calls.findByPk(lead.callId, { transaction });
     if (!call) return;
     await call.update(clean({
       callerName: call.callerName ?? lead.name,
       callerPhone: call.callerPhone ?? lead.phone,
       callerEmail: call.callerEmail ?? lead.email,
       outcome: strongerOutcome(call.outcome, 'lead_captured'),
-    }));
+    }), { transaction });
   }
 }
