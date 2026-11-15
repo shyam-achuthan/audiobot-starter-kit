@@ -19,8 +19,8 @@ Uses open-source parts wherever it can. Every provider can be swapped by config.
 | Embeddings | **Configurable through LiteLLM**, chosen per knowledge base in Admin. Default `embed-gemini` (Gemini embeddings, 768 dims). Vertex AI, Bedrock, OpenRouter or local BGE-M3 can be added as `embed-*` aliases |
 | VAD / turn-taking | Silero VAD and the LiveKit multilingual turn-detector, with interruption (barge-in) support |
 | Workflows (v1) | Router/Receptionist, then Lead Qualification, Sales and Support (with handoffs between them) |
-| System of record | **Own Postgres with pgvector**, plus **outbound webhooks** |
-| Local CRM / helpdesk | **Twenty CRM** and **Chatwoot** in the stack, synced from webhooks, so every flow can be checked locally |
+| System of record | **Own Postgres with pgvector**, plus **outbound webhooks**: transactional outbox in Postgres, Standard Webhooks signatures, 8 retries over ~27 h |
+| Local CRM / helpdesk | **Twenty CRM** (v2.57) and **Chatwoot** (v4.19 CE) in the `crm` profile, synced by built-in connectors fed from the same outbox (lead → person/company/opportunity/note; ticket → conversation, status both ways). Chatwoot is scripted by `make crm-setup`; Twenty's API key is added by hand |
 | Backend API | **NestJS** (TypeScript) with **Sequelize** (`sequelize-typescript`, Umzug migrations run on startup) |
 | Bookings (v1) | **Callback requests only**: agents capture a preferred callback time as a high-priority callback ticket; no calendar |
 | Human handoff (until SIP) | **Callback ticket**: when a caller asks for a person, the agent confirms name and phone and books a high-priority callback |
@@ -112,7 +112,7 @@ audiobots/
 - `leads`: name, phone, email, company, BANT fields, score, status, source call
 - `tickets`: subject, description, priority, status, external ids (Chatwoot)
 - ~~`meetings`~~: not needed in v1. Callback requests are `tickets` with `type=callback` and a preferred time
-- `webhook_endpoints`, `webhook_deliveries` (events: `call.started|ended`, `lead.created|updated`, `ticket.created`, `meeting.booked`)
+- `webhook_endpoints`, `events` (outbox), `webhook_deliveries` (events: `call.started|ended`, `lead.created|updated`, `ticket.created|updated`; callbacks are tickets with `type=callback`)
 
 ---
 
@@ -155,7 +155,7 @@ Target **≤ 800 ms** from the user stopping to the bot's first audio. Stretch g
 | 2 ✅ | **Workflows**: Router plus the 3 agents, handoffs, tools against the NestJS API, calls and turns stored | Each flow can be completed end-to-end (scripted scenario calls pass), and the lead, ticket and callback rows appear in Postgres |
 | 3 ✅ | **Knowledge base / RAG**: upload, chunk, embed (provider chosen per KB), pgvector search | Sales and Support answer from uploaded docs, and switching the embedding provider re-indexes |
 | 4 ✅ | **Admin dashboard**: email/password sign-in with owner/admin roles, agents (prompts, models, voices, turn timing), knowledge bases, calls with transcript (audio in phase 6), leads, tickets, latency charts | Agent behaviour can be changed from the UI without a redeploy |
-| 5 | **Integrations**: outbound webhooks with retries, Twenty and Chatwoot sync (`crm` profile) | A lead shows up in Twenty and a ticket in Chatwoot automatically |
+| 5 ✅ | **Integrations**: outbound webhooks with retries, Twenty and Chatwoot sync (`crm` profile) | A lead shows up in Twenty and a ticket in Chatwoot automatically |
 | 6 | **Recording and observability**: Egress to RustFS, consent flow, Langfuse traces | Every call has a recording (if consented) and a full LLM trace |
 | 7 | **SIP**: `livekit-sip`, inbound dispatch rules, outbound calls, warm transfer. Tested with a softphone | A call from Linphone/Zoiper goes through the same workflows. The SIP trunk is plugged in once chosen |
 | 8 | **Widget hardening**: embed snippet, theming, mic permission UX, live transcript, reconnect, allowed-origin tokens | Pasting the snippet into any site works securely |

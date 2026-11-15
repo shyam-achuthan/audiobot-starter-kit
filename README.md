@@ -20,7 +20,7 @@ make health    # API readiness: postgres, livekit, litellm
 | URL | What |
 |---|---|
 | http://localhost:3000/demo | Demo page (starts a call with the agent) |
-| http://localhost:3000/admin | Admin dashboard (sign in): overview charts, calls, leads, tickets, agent settings, knowledge, users |
+| http://localhost:3000/admin | Admin dashboard (sign in): overview charts, calls, leads, tickets, agent settings, knowledge, integrations, users |
 | http://localhost:3000/admin/setup | First-run product setup (business profile, knowledge, test call) |
 | http://localhost:4000/health | API readiness JSON |
 | http://localhost:9001 | RustFS console (S3 keys in `.env`) |
@@ -32,6 +32,8 @@ Add provider keys to `.env` (`SARVAM_API_KEY`, `GEMINI_API_KEY`, …) and run `m
 
 **First sign-in:** `./setup.sh` offers to create the owner account; otherwise open `/login` and create it there (only possible while no accounts exist). Lost the password? `make admin-password email=you@example.com`.
 
+**CRM and helpdesk (optional):** `make up-crm` starts a local Twenty CRM (http://localhost:3020) and Chatwoot (http://localhost:3030); `make crm-setup` connects them. Leads then appear in Twenty and tickets in Chatwoot automatically, and resolving a conversation in Chatwoot resolves the ticket. Any other system can receive signed webhooks (Admin → Integrations).
+
 Then open `/admin/setup`: describe your business and add documents, FAQs or web pages to a knowledge base. Agents quote prices and policies only from that knowledge base. Each agent's instructions, LLM, voice and turn timing can be changed under **Agents**; changes apply to the next call. A sample pack for a fictional product is in [samples/knowledge](samples/knowledge).
 
 ### Notes
@@ -41,7 +43,7 @@ Then open `/admin/setup`: describe your business and add documents, FAQs or web 
 ## Layout
 
 ```
-api/      NestJS API (tokens, business logic, webhooks)
+api/      NestJS API (tokens, business logic, webhooks, CRM sync)
 agent/    Python LiveKit Agents worker (conversation)
 web/      Next.js admin + demo page
 infra/    LiveKit, LiteLLM, Postgres config

@@ -184,6 +184,7 @@ footer { color: var(--faint); font-size: .85rem; border-top: 1px solid var(--bor
     <li class="group">Use</li>
     <li><a href="#setup-knowledge">Setup &amp; knowledge</a></li>
     <li><a href="#dashboard">Admin dashboard</a></li>
+    <li><a href="#integrations">Integrations</a></li>
     <li><a href="#demo">Demo page</a></li>
     <li><a href="#workflows">Workflows</a></li>
     <li><a href="#data-api">Data &amp; API</a></li>
@@ -221,8 +222,9 @@ footer { color: var(--faint); font-size: .85rem; border-top: 1px solid var(--bor
     <div class="card"><h3>Saved to Postgres</h3><p>Every call, turn, lead, support ticket and callback request is stored through the NestJS API (Sequelize).</p></div>
     <div class="card"><h3>Knowledge base</h3><p>Agents answer from your documents, FAQs and web pages, in any supported language, and quote prices only from them.</p></div>
     <div class="card"><h3>Visual setup</h3><p>Business profile and knowledge are managed on admin pages, not in config files.</p></div>
+    <div class="card"><h3>CRM &amp; webhooks</h3><p>Leads appear in Twenty CRM and tickets in Chatwoot automatically. Any other system can receive signed webhooks, with retries.</p></div>
   </div>
-  <div class="callout warn"><strong>Status:</strong> Phases 0–4 are done: the stack, the voice loop, workflows with tools and storage, the knowledge base with visual product setup, and the admin dashboard with sign-in and per-agent settings. CRM sync, recording and SIP come in later phases. See the <a href="#roadmap">roadmap</a>.</div>
+  <div class="callout warn"><strong>Status:</strong> Phases 0–5 are done: the stack, the voice loop, workflows with tools and storage, the knowledge base with visual product setup, the admin dashboard with sign-in and per-agent settings, and integrations (webhooks, Twenty CRM, Chatwoot). Recording and SIP come in later phases. See the <a href="#roadmap">roadmap</a>.</div>
 </section>
 
 <section id="quickstart">
@@ -566,6 +568,7 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
     <tr><td><strong>Tickets</strong></td><td>Open and in-progress tickets by default. Change status inline, filter by type (support or callback) and priority, search by ticket number, subject, name or phone. A ticket page lets you edit the description, status and priority.</td></tr>
     <tr><td><strong>Agents</strong></td><td>Per-agent settings, described below.</td></tr>
     <tr><td><strong>Knowledge</strong>, <strong>Setup</strong></td><td>See <a href="#setup-knowledge">Setup &amp; knowledge</a>.</td></tr>
+    <tr><td><strong>Integrations</strong> (owners only)</td><td>Twenty CRM and Chatwoot status, webhook endpoints and the delivery log. See <a href="#integrations">Integrations</a>.</td></tr>
     <tr><td><strong>Users</strong> (owners only)</td><td>Add admins or owners, change roles, set a new password for someone, disable or delete accounts. At least one active owner always remains.</td></tr>
   </table></div>
   <h3>Agent settings</h3>
@@ -579,6 +582,57 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
     <tr><td>Turn timing</td><td>Minimum and maximum end-of-turn delay, whether the caller can interrupt, and the minimum interruption length. LiveKit applies the minimum interruption length to the whole call, so it comes from the agent that answers.</td></tr>
   </table></div>
   <p>Every field shows <em>Default</em> or <em>Customized</em>, and each one has a <em>Use default</em> link. The defaults come from the code (<code>agent/prompts.py</code> and <code>.env</code>): the agent worker reports them to the API when it starts, so they always match the running version.</p>
+</section>
+
+<section id="integrations">
+  <h2>Integrations</h2>
+  <p>Every change to a call, lead or ticket becomes an <strong>event</strong>. Events go to the built-in Twenty CRM and Chatwoot connectors and to any webhook endpoints you add. Manage them under <strong>Admin → Integrations</strong> (owners only).</p>
+  <h3>How delivery works</h3>
+  <ul>
+    <li>Events are written to Postgres in the same transaction as the change (an <em>outbox</em>), so none are lost if the API restarts. An update that changes nothing sends nothing.</li>
+    <li>A worker inside the API sends them within a second or two. If a send fails, it is retried 8 times over about a day (after 5 s, 5 min, 30 min, 2 h, 5 h, 10 h, 10 h), then marked <em>Failed</em>. Any failed or retrying send can be retried from the delivery log.</li>
+    <li>The log keeps the payload, HTTP status, response and timing for 30 days (<code>EVENT_RETENTION_DAYS</code>).</li>
+    <li>Several API instances can run at once: each send is claimed with a lease, so it goes out once.</li>
+  </ul>
+  <div class="table-wrap"><table>
+    <tr><th>Event</th><th>Sent when</th></tr>
+    <tr><td><code>call.started</code></td><td>A call connects</td></tr>
+    <tr><td><code>call.ended</code></td><td>A call ends. Includes outcome, duration, median latency, agent path and the transcript</td></tr>
+    <tr><td><code>lead.created</code> / <code>lead.updated</code></td><td>The agent captures or updates a lead, or someone edits it on the dashboard. Updates list the <code>changed</code> fields</td></tr>
+    <tr><td><code>ticket.created</code> / <code>ticket.updated</code></td><td>A support ticket or callback request is created or changed (dashboard, agent, or Chatwoot: then <code>source</code> is <code>"chatwoot"</code>)</td></tr>
+  </table></div>
+  <h3>Twenty CRM and Chatwoot (local)</h3>
+  <p>Both run in Docker with the <code>crm</code> profile, so you can test the full flow on your machine. Together they need about 3 GB of RAM.</p>
+  <div class="code"><pre>make up-crm      # core stack + Twenty (localhost:3020) + Chatwoot (localhost:3030)
+make crm-setup   # sets up Chatwoot automatically and tells you how to add the Twenty key</pre></div>
+  <ul>
+    <li><strong>Chatwoot</strong>: <code>make crm-setup</code> creates the account, an admin user (your <code>ADMIN_EMAIL</code>; the password goes into <code>.env</code> as <code>CHATWOOT_ADMIN_PASSWORD</code>), a <em>Voice calls</em> API inbox, an API token, and a webhook back to AudioBots. It writes the IDs and token to <code>.env</code> and restarts the API.</li>
+    <li><strong>Twenty</strong>: Twenty has no supported way to script its first sign-up, so this step is manual. Open <a href="http://localhost:3020">localhost:3020</a>, create your account and workspace, then go to <em>Settings → Developers → API Keys → Create API key</em> (role Admin, expiry Never). Put the key in <code>.env</code> as <code>TWENTY_API_KEY</code> and run <code>make crm-setup</code> again.</li>
+    <li>Records that existed before a connector was set up can be sent with <em>Sync existing leads / tickets</em> on the Integrations page.</li>
+    <li>To use your own hosted Twenty or Chatwoot, set <code>TWENTY_URL</code> / <code>CHATWOOT_URL</code> (what the API calls) and the <code>*_PUBLIC_URL</code> values (links shown on the dashboard) to that instance, and add its key, account and inbox IDs. You don't need the <code>crm</code> profile then.</li>
+  </ul>
+  <div class="table-wrap"><table>
+    <tr><th>Connector</th><th>What it creates</th><th>Kept in sync</th></tr>
+    <tr><td>Twenty CRM</td><td>A <strong>person</strong> (name, +91 phone, email), a <strong>company</strong> if the caller named one, an <strong>opportunity</strong> and a <strong>note</strong> with the qualification answers, score and links to the lead and call. Existing people and companies are matched by email, phone and name, so they aren't duplicated.</td><td>Every lead change updates the same records. The opportunity stage follows the lead status (new → New, qualified → Screening, callback → Meeting). If sales move the stage in Twenty, it stays put until the lead's status changes here. Unqualified leads get no opportunity.</td></tr>
+    <tr><td>Chatwoot</td><td>A <strong>contact</strong> and one <strong>conversation</strong> per ticket in the <em>Voice calls</em> inbox. The ticket shows as the caller's message, labelled <code>voice</code> and <code>support</code> or <code>callback</code>, with priority set and the call transcript as a private note.</td><td>Status and priority changes made here update the conversation. Resolving (or marking pending) a conversation in Chatwoot updates the ticket here, so the voice agent tells callers the right status.</td></tr>
+  </table></div>
+  <p>Lead and ticket pages on the dashboard link to the record in Twenty or Chatwoot once it has synced.</p>
+  <h3>Webhooks</h3>
+  <p>Add an endpoint with a name, a URL and the events it should get (or all of them). Use <em>Send test</em> to check it. Every request follows the <a href="https://www.standardwebhooks.com">Standard Webhooks</a> spec:</p>
+  <ul>
+    <li>Body: <code>{"type": "lead.created", "timestamp": "…", "data": {…}}</code>. <code>data</code> is the record, plus a <code>dashboardUrl</code>.</li>
+    <li>Headers: <code>webhook-id</code> (the same on every retry, so you can drop duplicates), <code>webhook-timestamp</code> and <code>webhook-signature</code> (<code>v1,</code> + base64 HMAC-SHA256 of <code>id.timestamp.body</code>, keyed with the endpoint's <code>whsec_…</code> secret).</li>
+    <li>Reply with any 2xx within 10 seconds. Redirects count as failures. Events can arrive out of order, so compare <code>timestamp</code>s.</li>
+    <li>A paused endpoint gets no new events. Rotating the secret takes effect immediately.</li>
+  </ul>
+  <div class="code"><pre>// Node: npm i standardwebhooks (libraries exist for Python, Go, Ruby, PHP, Java…)
+import { Webhook } from "standardwebhooks";
+const wh = new Webhook(process.env.AUDIOBOTS_WEBHOOK_SECRET);           // whsec_…
+app.post("/webhooks/audiobots", express.raw({ type: "application/json" }), (req, res) =&gt; {
+  const event = wh.verify(req.body, req.headers);                       // throws if not genuine
+  if (event.type === "lead.created") { /* … */ }
+  res.sendStatus(204);
+});</pre></div>
 </section>
 
 <section id="demo">
@@ -621,16 +675,19 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
     <tr><th>Table</th><th>Holds</th></tr>
     <tr><td><code>calls</code></td><td>One row per call: room, channel, starting workflow, agent path (e.g. router → support), language, status, outcome, caller name and phone, turn count, median voice-to-voice latency</td></tr>
     <tr><td><code>call_turns</code></td><td>Every turn: agent, language, caller text, agent text, interrupted flag, and latency per stage (end of turn, STT, LLM, TTS, total)</td></tr>
-    <tr><td><code>leads</code></td><td>Name, phone (+91…), email, company, need, team size, budget, authority, timeline, score, status (new / qualified / unqualified / callback), preferred callback time</td></tr>
-    <tr><td><code>tickets</code></td><td>Support issues and callback requests: number (TKT-1001 upwards), type, subject, description, priority, status, contact, preferred callback time</td></tr>
+    <tr><td><code>leads</code></td><td>Name, phone (+91…), email, company, need, team size, budget, authority, timeline, score, status (new / qualified / unqualified / callback), preferred callback time, IDs of the synced Twenty records</td></tr>
+    <tr><td><code>tickets</code></td><td>Support issues and callback requests: number (TKT-1001 upwards), type, subject, description, priority, status, contact, preferred callback time, ID of the Chatwoot conversation</td></tr>
     <tr><td><code>business_profiles</code></td><td>Single row edited on the Setup page: name, description, industry, website, hours, extra instructions, setup completed</td></tr>
     <tr><td><code>knowledge_bases</code></td><td>Name, embedding model, vector size, which agents may use it</td></tr>
     <tr><td><code>kb_documents</code></td><td>Sources (file, FAQ, URL) with extracted text, status, error and chunk count</td></tr>
     <tr><td><code>kb_chunks</code></td><td>Text chunks with their pgvector embedding (HNSW-indexed for cosine search)</td></tr>
+    <tr><td><code>webhook_endpoints</code></td><td>Webhook URL, name, events, signing secret, paused flag</td></tr>
+    <tr><td><code>events</code></td><td>Outbox: one row per call, lead or ticket change, with its payload (kept 30 days)</td></tr>
+    <tr><td><code>webhook_deliveries</code></td><td>One row per event and destination (endpoint, Twenty or Chatwoot): status, attempts, next attempt, last HTTP status, error and response</td></tr>
   </table></div>
   <p class="muted">Call outcome only moves up in priority: <code>callback_requested</code> &gt; <code>ticket_created</code> &gt; <code>lead_captured</code> &gt; <code>info_only</code> &gt; <code>abandoned</code>.</p>
   <h3>Endpoints</h3>
-  <p>Everything under <code>/v1</code> except the browser token, <code>/v1/auth/status</code>, <code>/login</code> and <code>/setup</code> needs <code>Authorization: Bearer …</code> with either <code>AGENT_API_TOKEN</code> (the voice agent) or an admin session token (what the dashboard sends). Creating calls, turns, leads and tickets is agent-only, and user management is owner-only.</p>
+  <p>Everything under <code>/v1</code> except the browser token, <code>/v1/auth/status</code>, <code>/login</code> and <code>/setup</code> needs <code>Authorization: Bearer …</code> with either <code>AGENT_API_TOKEN</code> (the voice agent) or an admin session token (what the dashboard sends). Creating calls, turns, leads and tickets is agent-only, and user management and integrations are owner-only.</p>
   <div class="table-wrap"><table>
     <tr><th>Method &amp; path</th><th>Purpose</th></tr>
     <tr><td><code>POST /v1/livekit/token</code></td><td>Public. Room and token for a browser call, with <code>{"workflow": "router|sales|support|lead_qualification"}</code></td></tr>
@@ -650,6 +707,12 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
     <tr><td><code>GET /v1/agents/options</code>, <code>PUT /v1/agents/defaults</code></td><td>LLM aliases and voices for the editor; the agent worker reports its defaults (agent only)</td></tr>
     <tr><td><code>GET /v1/stats?days=14</code></td><td>Dashboard totals, daily series and latency percentiles (days are counted in <code>DASHBOARD_TIMEZONE</code>, default Asia/Kolkata)</td></tr>
     <tr><td><code>GET /v1/calls|leads|tickets?q=&amp;limit=&amp;offset=…</code></td><td>Lists return <code>{items, total}</code> and take search, filters (status, outcome, workflow, type, priority, minScore) and <code>from</code>/<code>to</code> dates</td></tr>
+    <tr><td><code>GET /v1/integrations</code></td><td>Owner only: connector status, endpoints and 7-day delivery counts</td></tr>
+    <tr><td><code>POST /v1/integrations/webhooks</code>, <code>PATCH|DELETE …/webhooks/:id</code></td><td>Manage endpoints (<code>{name, url, events[], enabled}</code>; empty <code>events</code> = all). Creating returns the secret once</td></tr>
+    <tr><td><code>GET …/webhooks/:id/secret</code>, <code>POST …/rotate-secret</code>, <code>POST …/test</code></td><td>Reveal or rotate the signing secret; queue a <code>webhook.test</code> event</td></tr>
+    <tr><td><code>GET /v1/integrations/deliveries[/:id]</code>, <code>POST …/:id/retry</code></td><td>Delivery log (filters <code>endpointId</code>, <code>connector</code>, <code>status</code>), one delivery with payload, retry now</td></tr>
+    <tr><td><code>POST /v1/integrations/connectors/:name/backfill</code></td><td>Queue a sync of every lead (twenty) or ticket (chatwoot) that hasn't synced yet</td></tr>
+    <tr><td><code>POST /v1/integrations/chatwoot/webhook?token=…</code></td><td>Called by Chatwoot when a conversation's status changes. Needs <code>CHATWOOT_WEBHOOK_TOKEN</code></td></tr>
     <tr><td><code>POST /v1/knowledge/search</code></td><td><code>{query, workflow?, kbIds?, topK?}</code>: semantic search, used by agents and the Test search box</td></tr>
   </table></div>
   <div class="code"><pre>T=$(grep ^AGENT_API_TOKEN= .env | cut -d= -f2)
@@ -661,16 +724,18 @@ curl -s localhost:4000/v1/tickets/1004  -H "Authorization: Bearer $T"</pre></div
   <h2>Services &amp; URLs</h2>
   <div class="table-wrap"><table>
     <tr><th>Service</th><th>URL / port</th><th>Purpose</th></tr>
-    <tr><td><code>web</code></td><td><a href="http://localhost:3000">localhost:3000</a></td><td>Demo page and admin (Next.js): <code>/login</code>, <code>/admin</code> (overview), calls, leads, tickets, agents, knowledge, setup, users</td></tr>
+    <tr><td><code>web</code></td><td><a href="http://localhost:3000">localhost:3000</a></td><td>Demo page and admin (Next.js): <code>/login</code>, <code>/admin</code> (overview), calls, leads, tickets, agents, knowledge, setup, integrations, users</td></tr>
     <tr><td><code>api</code></td><td><a href="http://localhost:4000/health">localhost:4000</a></td><td>NestJS: <code>/health</code>, <code>/health/live</code>, <code>POST /v1/livekit/token</code></td></tr>
     <tr><td><code>livekit</code></td><td><code>ws://localhost:7880</code>, TCP 7881, UDP 50000–50100</td><td>WebRTC media server</td></tr>
     <tr><td><code>agent</code></td><td>internal (health on :8081)</td><td>Voice agent workers</td></tr>
     <tr><td><code>litellm</code></td><td><a href="http://localhost:4100">localhost:4100</a></td><td>LLM gateway (OpenAI-compatible). Auth: <code>LITELLM_MASTER_KEY</code>.</td></tr>
     <tr><td><code>postgres</code></td><td><code>localhost:5433</code></td><td>App DB with pgvector, plus DBs for Twenty, Chatwoot, Langfuse and LiteLLM</td></tr>
     <tr><td><code>redis</code></td><td>internal</td><td>LiveKit coordination</td></tr>
+    <tr><td><code>twenty-server</code>, <code>twenty-worker</code></td><td><a href="http://localhost:3020">localhost:3020</a> (<code>crm</code> profile)</td><td>Twenty CRM, for lead sync</td></tr>
+    <tr><td><code>chatwoot-web</code>, <code>chatwoot-sidekiq</code></td><td><a href="http://localhost:3030">localhost:3030</a> (<code>crm</code> profile)</td><td>Chatwoot helpdesk, for ticket sync. <code>chatwoot-migrate</code> prepares its database and exits</td></tr>
     <tr><td><code>rustfs</code></td><td><a href="http://localhost:9001">localhost:9001</a> (console), 9000 (S3)</td><td>S3-compatible storage with the <code>recordings</code> and <code>langfuse</code> buckets</td></tr>
   </table></div>
-  <p class="muted">Postgres, LiteLLM and RustFS are bound to <code>127.0.0.1</code> only, so they aren't reachable from your network.</p>
+  <p class="muted">Postgres, LiteLLM, RustFS, Twenty and Chatwoot are bound to <code>127.0.0.1</code> only, so they aren't reachable from your network.</p>
 </section>
 
 <section id="commands">
@@ -679,6 +744,8 @@ curl -s localhost:4000/v1/tickets/1004  -H "Authorization: Bearer $T"</pre></div
     <tr><th>Command</th><th>What it does</th></tr>
     <tr><td><code>./setup.sh</code></td><td>Complete guided setup (re-runnable)</td></tr>
     <tr><td><code>make up</code></td><td>Create or refresh <code>.env</code>, build, start the core stack</td></tr>
+    <tr><td><code>make up-crm</code></td><td>Core stack plus the local Twenty CRM and Chatwoot</td></tr>
+    <tr><td><code>make crm-setup</code></td><td>Connect Chatwoot (automatic) and Twenty (asks for its API key)</td></tr>
     <tr><td><code>make ps</code></td><td>Service status and health</td></tr>
     <tr><td><code>make health</code></td><td>API readiness JSON (db, livekit, litellm)</td></tr>
     <tr><td><code>make logs s=agent</code></td><td>Follow one service's logs</td></tr>
@@ -713,6 +780,12 @@ curl -s localhost:4000/v1/tickets/1004  -H "Authorization: Bearer $T"</pre></div
     <tr><td><code>OUTBOUND_PROXY</code></td><td>empty</td><td>Optional HTTP proxy for provider traffic (Sarvam from the agent, Gemini and others from LiteLLM). Internal services always connect directly.</td></tr>
     <tr><td><code>ADMIN_EMAIL</code> / <code>ADMIN_PASSWORD</code></td><td>empty</td><td>Create the first owner account on start (only while no accounts exist). Leave empty to create it on <code>/login</code>.</td></tr>
     <tr><td><code>ADMIN_SESSION_HOURS</code></td><td>168</td><td>How long a dashboard sign-in lasts</td></tr>
+    <tr><td><code>TWENTY_API_KEY</code></td><td>empty</td><td>Turns on the Twenty connector. <code>TWENTY_URL</code> / <code>TWENTY_PUBLIC_URL</code> default to the bundled instance</td></tr>
+    <tr><td><code>CHATWOOT_API_TOKEN</code>, <code>_ACCOUNT_ID</code>, <code>_INBOX_ID</code></td><td>empty (filled by <code>make crm-setup</code>)</td><td>Turns on the Chatwoot connector. <code>CHATWOOT_URL</code> / <code>CHATWOOT_PUBLIC_URL</code> default to the bundled instance</td></tr>
+    <tr><td><code>CHATWOOT_WEBHOOK_TOKEN</code></td><td><em>generated</em></td><td>Secret in the URL Chatwoot calls back with status changes</td></tr>
+    <tr><td><code>TWENTY_APP_SECRET</code>, <code>CHATWOOT_SECRET_KEY_BASE</code></td><td><em>generated</em></td><td>Secrets of the bundled apps</td></tr>
+    <tr><td><code>PUBLIC_WEB_URL</code></td><td><code>http://localhost:3000</code></td><td>Dashboard address used in links inside CRM notes and webhook payloads</td></tr>
+    <tr><td><code>EVENT_RETENTION_DAYS</code></td><td>30</td><td>How long events and the delivery log are kept</td></tr>
     <tr><td><code>DASHBOARD_TIMEZONE</code></td><td>Asia/Kolkata</td><td>Day boundaries for dashboard charts</td></tr>
     <tr><td><code>AUTO_MIGRATE</code></td><td>true</td><td>Apply database migrations when the API starts</td></tr>
     <tr><td><code>CORS_ORIGINS</code></td><td><code>http://localhost:3000</code></td><td>Origins allowed to call the API (websites embedding the widget)</td></tr>
@@ -779,6 +852,7 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
 │   └── scripts/             e2e call + benchmarks
 ├── api/                     NestJS + Sequelize
 │   └── src/                 auth/ agents/ stats/ calls/ leads/ tickets/ knowledge/ profile/ livekit/ health/
+│       ├── integrations/    event outbox, delivery worker, webhooks, connectors/ (twenty, chatwoot)
 │       └── database/        models.ts, migrations/, migrator.ts
 ├── web/                     Next.js: /demo, /login, /admin/*, /admin-api proxy (adds the session)
 ├── samples/knowledge/       fictional QuickBill docs for demos and tests
@@ -787,7 +861,7 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
 │   ├── litellm/config.yaml  model aliases, fallbacks
 │   ├── litellm/secrets/     gitignored (Vertex key)
 │   └── postgres/init/       creates DBs + pgvector
-└── scripts/                 init-env.sh, tune-latency.sh</pre></div>
+└── scripts/                 init-env.sh, tune-latency.sh, crm-setup.sh, chatwoot-bootstrap.rb</pre></div>
 </section>
 
 <section id="security">
@@ -799,6 +873,8 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
     <li>Postgres, LiteLLM and RustFS listen on localhost only. LiveKit and the web app are reachable on your LAN.</li>
     <li>Recording upload to LiveKit Cloud is disabled. Call recording (Phase 6) will play a consent prompt first and store audio in your own RustFS.</li>
     <li>The dashboard needs an email + password sign-in. The session token sits in an httpOnly, SameSite=Lax cookie (Secure over HTTPS), and only its SHA-256 is stored. The browser never sees <code>AGENT_API_TOKEN</code>. The public <code>/backend</code> proxy only serves the call token and auth status.</li>
+    <li>Integrations are owner-only. Webhook secrets are shown only on request, every request is signed, and the Chatwoot callback needs a secret token. Twenty and Chatwoot keys live in <code>.env</code>, never in the database.</li>
+    <li>The bundled Chatwoot runs with <code>SAFE_FETCH_ALLOW_PRIVATE_NETWORK=true</code> so it can call the API container. Leave that off on an internet-facing Chatwoot. Webhook URLs can point at internal hosts too, which is why only owners can add them.</li>
     <li>Production (later): TLS in front of LiveKit and the web app, and DPDP Act retention settings.</li>
   </ul>
 </section>
@@ -823,6 +899,10 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
     <tr><td>Agents page says the worker hasn't reported its defaults</td><td>The agent container reports its built-in settings when it starts and again on the next call. Check that <code>agent</code> is running (<code>make ps</code>), then reload the page.</td></tr>
     <tr><td>A change on the Agents page didn't apply</td><td>Settings are read when a call starts, so calls already in progress keep the old ones. Start a new call.</td></tr>
     <tr><td>Agent says it will save or book something, then asks for the number again</td><td>A tool refused the request; see <code>make logs s=agent</code> and search for <code>ToolError</code>. The message says why, e.g. "phone is not a valid number".</td></tr>
+    <tr><td>Integrations page shows Twenty or Chatwoot as <em>Not set up</em></td><td>Its key is missing from <code>.env</code>. Run <code>make up-crm</code>, then <code>make crm-setup</code> (see <a href="#integrations">Integrations</a>). After editing <code>.env</code> by hand: <code>docker compose up -d api</code>.</td></tr>
+    <tr><td><em>Can't connect</em>, or deliveries to Twenty/Chatwoot show "fetch failed"</td><td>The app isn't running or is still starting (Twenty takes about a minute). Check <code>make ps</code>. "API key was rejected" means the key was deleted or belongs to another workspace: create a new one. Failed sends retry on their own; use <em>Retry now</em> to send at once.</td></tr>
+    <tr><td>Resolving a conversation in Chatwoot doesn't update the ticket</td><td>Chatwoot's webhook isn't reaching the API. Run <code>make crm-setup</code> again (it recreates the webhook), and check <code>docker compose logs chatwoot-sidekiq | grep -i webhook</code>. "Invalid webhook URL" means private-network calls are blocked: see the Security section.</td></tr>
+    <tr><td>Webhook endpoint keeps failing</td><td>Open the delivery in the log to see the HTTP status, error and response. <code>ECONNREFUSED</code> or "no response within 10s" means the URL isn't reachable from the API container. For a receiver on your Mac use <code>http://host.docker.internal:PORT</code>, not <code>localhost</code>.</td></tr>
     <tr><td>Bot replies in the wrong language</td><td>Check the agent logs for <code>language switch</code> lines. If STT detects correctly but the reply drifts, try <code>LLM_MODEL=agent-smart</code>.</td></tr>
   </table></div>
 </section>
@@ -837,7 +917,7 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
     <tr><td>2</td><td>Workflows with tools and handoffs; calls, turns, leads and tickets in Postgres (Sequelize)</td><td class="status-done">Done</td></tr>
     <tr><td>3</td><td>Knowledge base / RAG with selectable embedding providers, visual product setup</td><td class="status-done">Done</td></tr>
     <tr><td>4</td><td>Admin dashboard: sign-in and users, per-agent prompts, models, voices and timing, calls, leads, tickets, latency charts</td><td class="status-done">Done</td></tr>
-    <tr><td>5</td><td>Webhooks, plus Twenty CRM and Chatwoot sync</td><td>Planned</td></tr>
+    <tr><td>5</td><td>Signed webhooks with retries, Twenty CRM and Chatwoot sync (two-way ticket status)</td><td class="status-done">Done</td></tr>
     <tr><td>6</td><td>Call recording (consent) to RustFS, Langfuse tracing</td><td>Planned</td></tr>
     <tr><td>7</td><td>SIP: inbound and outbound calls, warm transfer, Indian SIP trunk</td><td>Planned</td></tr>
     <tr><td>8</td><td>Embeddable website widget</td><td>Planned</td></tr>
@@ -846,7 +926,7 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
   <p class="muted">Full decisions and details: <code>PLAN.md</code>.</p>
 </section>
 
-<footer>AudioBots starter kit · guide reflects the code as of Phase 4 (Nov 2026).</footer>
+<footer>AudioBots starter kit · guide reflects the code as of Phase 5 (Nov 2026).</footer>
 </main>
 </div>
 
