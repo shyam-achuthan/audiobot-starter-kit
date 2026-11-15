@@ -48,11 +48,19 @@ model_list:
   # OpenRouter embeddings + local BGE-M3 are added in Phase 3.
 
 router_settings:
+  # On a quota/rate-limit error, move to the next model immediately instead of
+  # retrying (Gemini free tier: 20 requests/day per model; retries just add
+  # ~20 s of silence on a live call).
   fallbacks:
-    - agent-fast: ["agent-fast-fallback"]
-    - agent-smart: ["agent-fast"]
+    - agent-fast: ["agent-lite", "agent-fast-fallback"]
+    - agent-smart: ["agent-fast", "agent-lite"]
     - agent-claude: ["agent-fast"]
-  num_retries: 1
+  retry_policy:
+    RateLimitErrorRetries: 0
+    TimeoutErrorRetries: 1
+    InternalServerErrorRetries: 1
+  allowed_fails: 1
+  cooldown_time: 60
   timeout: 20
 
 litellm_settings:
