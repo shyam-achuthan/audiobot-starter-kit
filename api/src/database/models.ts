@@ -12,7 +12,7 @@ import {
 
 export const CALL_STATUSES = ['active', 'ended'] as const;
 export const CALL_OUTCOMES = [
-  'lead_captured', 'ticket_created', 'callback_requested', 'info_only', 'abandoned',
+  'lead_captured', 'ticket_created', 'callback_requested', 'info_only', 'abandoned', 'transferred',
 ] as const;
 export const LEAD_STATUSES = ['new', 'qualified', 'unqualified', 'callback'] as const;
 export const TICKET_TYPES = ['support', 'callback'] as const;
@@ -23,6 +23,8 @@ export const RECORDING_STATUSES = [
   'none', 'recording', 'processing', 'ready', 'declined', 'failed', 'unavailable', 'deleted', 'expired',
 ] as const;
 export type RecordingStatus = (typeof RECORDING_STATUSES)[number];
+export const DIAL_STATUSES = ['dialing', 'answered', 'no_answer', 'busy', 'failed', 'blocked'] as const;
+export type DialStatus = (typeof DIAL_STATUSES)[number];
 export const RECORDING_CONSENTS = ['off', 'notice', 'ask'] as const;
 export type RecordingConsent = (typeof RECORDING_CONSENTS)[number];
 
@@ -56,6 +58,14 @@ export class Call extends Model {
   @Column(DataType.BIGINT) declare recordingBytes: string | null;
   @Column(DataType.TEXT) declare recordingError: string | null;
   @Column(DataType.DATE) declare transcriptPurgedAt: Date | null;
+  // Phone calls (Phase 7). channel is 'phone' for SIP calls.
+  @Column({ type: DataType.STRING(8), allowNull: false, defaultValue: 'inbound' }) declare direction: 'inbound' | 'outbound';
+  @Column(DataType.TEXT) declare remoteNumber: string | null;
+  @Column(DataType.TEXT) declare localNumber: string | null;
+  @Column(DataType.STRING(12)) declare dialStatus: DialStatus | null;
+  @Column(DataType.TEXT) declare dialError: string | null;
+  /** Outbound callback: the ticket this call is about (not an association, to keep Call.tickets simple). */
+  @Column(DataType.UUID) declare ticketId: string | null;
   @CreatedAt declare createdAt: Date;
   @UpdatedAt declare updatedAt: Date;
 
@@ -126,6 +136,10 @@ export class Ticket extends Model {
   @Column(DataType.TEXT) declare contactPhone: string | null;
   @Column(DataType.TEXT) declare contactEmail: string | null;
   @Column(DataType.TEXT) declare preferredCallbackTime: string | null;
+  /** When to call back (parsed from preferredCallbackTime by the agent); used by scheduled callbacks. */
+  @Column(DataType.DATE) declare callbackAt: Date | null;
+  @Column({ type: DataType.INTEGER, allowNull: false, defaultValue: 0 }) declare callbackAttempts: number;
+  @Column(DataType.DATE) declare lastCallbackAt: Date | null;
   @Column(DataType.STRING(8)) declare language: string | null;
   /** Ids in connected systems, e.g. { chatwoot: { contactId, conversationId } }. */
   @Column({ type: DataType.JSONB, allowNull: false, defaultValue: {} }) declare external: Record<string, any>;
@@ -160,6 +174,10 @@ export class BusinessProfile extends Model {
   // Retention in days; null = keep forever.
   @Column(DataType.INTEGER) declare recordingRetentionDays: number | null;
   @Column(DataType.INTEGER) declare transcriptRetentionDays: number | null;
+  // Outbound calling rules (Admin -> Phone); times are HH:MM in the dashboard timezone (IST).
+  @Column({ type: DataType.STRING(5), allowNull: false, defaultValue: '09:00' }) declare outboundHoursStart: string;
+  @Column({ type: DataType.STRING(5), allowNull: false, defaultValue: '21:00' }) declare outboundHoursEnd: string;
+  @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: true }) declare autoCallbacks: boolean;
   @CreatedAt declare createdAt: Date;
   @UpdatedAt declare updatedAt: Date;
 }
@@ -299,7 +317,26 @@ export class WebhookDelivery extends Model {
   @UpdatedAt declare updatedAt: Date;
 }
 
+@Table({ tableName: 'phone_numbers', underscored: true })
+export class PhoneNumber extends Model {
+  @Column({ type: DataType.UUID, primaryKey: true, defaultValue: DataType.UUIDV4 }) declare id: string;
+  @Column({ type: DataType.TEXT, allowNull: false, unique: true }) declare number: string;
+  @Column(DataType.TEXT) declare label: string | null;
+  @Column({ type: DataType.STRING(32), allowNull: false, defaultValue: 'router' }) declare workflow: string;
+  @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: true }) declare enabled: boolean;
+  @CreatedAt declare createdAt: Date;
+  @UpdatedAt declare updatedAt: Date;
+}
+
+@Table({ tableName: 'dnd_numbers', underscored: true, updatedAt: false })
+export class DndNumber extends Model {
+  @Column({ type: DataType.TEXT, primaryKey: true }) declare number: string;
+  @Column(DataType.TEXT) declare note: string | null;
+  @Column(DataType.TEXT) declare addedBy: string | null;
+  @CreatedAt declare createdAt: Date;
+}
+
 export const MODELS = [
   Call, CallTurn, Lead, Ticket, BusinessProfile, KnowledgeBase, KbDocument, AdminUser, AdminSession, AgentConfig,
-  WebhookEndpoint, OutboxEvent, WebhookDelivery,
+  WebhookEndpoint, OutboxEvent, WebhookDelivery, PhoneNumber, DndNumber,
 ];

@@ -10,6 +10,19 @@ export class CreateCallDto {
   @IsOptional() @IsIn(['web', 'sip']) channel?: string;
   @IsIn(WORKFLOWS) workflow!: string;
   @IsOptional() @IsString() @MaxLength(8) language?: string;
+  // Phone calls (Phase 7)
+  @IsOptional() @IsIn(['inbound', 'outbound']) direction?: 'inbound' | 'outbound';
+  @IsOptional() @IsString() @MaxLength(40) remoteNumber?: string;
+  @IsOptional() @IsString() @MaxLength(40) localNumber?: string;
+}
+
+/** Start an outbound call: dial a number directly, or call back a callback ticket. */
+export class OutboundCallDto {
+  @IsOptional() @IsString() @MaxLength(40) phone?: string;
+  @IsOptional() @IsString() @MaxLength(20) ticketRef?: string;
+  @IsOptional() @IsIn(WORKFLOWS) workflow?: string;
+  /** What the call is about; the agent opens with it. */
+  @IsOptional() @IsString() @MaxLength(1000) context?: string;
 }
 
 export class UpdateCallDto {

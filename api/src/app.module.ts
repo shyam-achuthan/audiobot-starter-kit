@@ -30,6 +30,8 @@ import { ChatwootInboundController, IntegrationsController } from './integration
 import { IntegrationsService } from './integrations/integrations.service';
 import { RecordingsController, RetentionController } from './recordings/recordings.controller';
 import { RecordingsService } from './recordings/recordings.service';
+import { OutboundController, PhoneController } from './telephony/telephony.controller';
+import { TelephonyService } from './telephony/telephony.service';
 
 @Module({
   imports: [
@@ -48,10 +50,10 @@ import { RecordingsService } from './recordings/recordings.service';
     HealthController, LivekitController, CallsController, LeadsController, TicketsController,
     KnowledgeController, ProfileController, AuthController, AdminUsersController,
     AgentsController, StatsController, IntegrationsController, ChatwootInboundController,
-    RecordingsController, RetentionController,
+    RecordingsController, RetentionController, PhoneController, OutboundController,
   ],
   providers: [AuthService, ApiAuthGuard, AgentsService, LivekitService, CallsService, LeadsService, TicketsService, KnowledgeService, EmbeddingsService,
     EventsService, DeliveryWorker, ConnectorRegistry, TwentyConnector, ChatwootConnector, IntegrationsService,
-    RecordingsService],
+    RecordingsService, TelephonyService],
 })
 export class AppModule {}

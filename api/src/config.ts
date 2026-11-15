@@ -58,6 +58,27 @@ export const config = {
     accessKey: process.env.S3_ACCESS_KEY ?? '',
     secretKey: process.env.S3_SECRET_KEY ?? '',
   },
+  // Phone calls (Phase 7) through the LiveKit SIP bridge (sip profile).
+  sip: {
+    // Health endpoint of the SIP bridge; used to show whether phone calls can work right now.
+    healthUrl: process.env.SIP_HEALTH_URL ?? 'http://sip:8080',
+    // Address trunks and softphones send calls to (shown on Admin -> Phone).
+    publicHost: process.env.SIP_PUBLIC_HOST ?? '',
+    // Inbound: who may send calls in. With a username/password set, the trunk provider must
+    // authenticate; otherwise calls are accepted from these networks (CIDRs).
+    inboundUsername: process.env.SIP_INBOUND_USERNAME ?? '',
+    inboundPassword: process.env.SIP_INBOUND_PASSWORD ?? '',
+    inboundAllowed: (process.env.SIP_INBOUND_ALLOWED ?? '10.0.0.0/8,172.16.0.0/12,192.168.0.0/16')
+      .split(',').map((x) => x.trim()).filter(Boolean),
+    // Outbound trunk (your SIP provider). Empty address = outbound calling off.
+    outboundAddress: process.env.SIP_OUTBOUND_ADDRESS ?? '',
+    outboundNumber: process.env.SIP_OUTBOUND_NUMBER ?? '', // caller ID, E.164
+    outboundUsername: process.env.SIP_OUTBOUND_USERNAME ?? '',
+    outboundPassword: process.env.SIP_OUTBOUND_PASSWORD ?? '',
+    outboundTransport: (process.env.SIP_OUTBOUND_TRANSPORT ?? 'udp').toLowerCase(),
+    maxCallbackAttempts: Number(process.env.CALLBACK_MAX_ATTEMPTS ?? 3),
+    callbackRetryMinutes: Number(process.env.CALLBACK_RETRY_MINUTES ?? 30),
+  },
   // Langfuse (Phase 6): only used to build "open trace" links on the call page.
   langfuse: {
     publicUrl: (process.env.LANGFUSE_PUBLIC_URL ?? '').replace(/\/$/, ''),

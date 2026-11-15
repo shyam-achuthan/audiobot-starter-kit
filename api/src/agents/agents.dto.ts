@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import {
-  IsArray, IsBoolean, IsIn, IsNumber, IsObject, IsOptional, IsString, Max, MaxLength, Min, ValidateNested,
+  IsArray, IsBoolean, IsIn, IsNumber, Matches, IsObject, IsOptional, IsString, Max, MaxLength, Min, ValidateNested,
 } from 'class-validator';
 
 /**
@@ -19,12 +19,14 @@ export class AgentOverridesDto {
   @IsOptional() @IsNumber() @Min(0.1) @Max(2) interruptionMinDuration?: number | null;
   /** off = never record; notice = record and tell the caller they can opt out; ask = record only after a yes. */
   @IsOptional() @IsIn(['off', 'notice', 'ask']) recordingConsent?: 'off' | 'notice' | 'ask' | null;
+  /** Human number for live transfers on phone calls (E.164, or a sip: URI). Empty = no transfer. */
+  @IsOptional() @IsString() @Matches(/^(\+\d{8,15}|sip:\S+)?$/, { message: 'use +91XXXXXXXXXX or a sip: address' }) transferNumber?: string | null;
 }
 
 export const OVERRIDE_KEYS = [
   'role', 'greeting', 'llmModel', 'ttsSpeaker', 'ttsPace',
   'endpointingMinDelay', 'endpointingMaxDelay', 'allowInterruptions', 'interruptionMinDuration',
-  'recordingConsent',
+  'recordingConsent', 'transferNumber',
 ] as const;
 
 export class SpeakerDto {

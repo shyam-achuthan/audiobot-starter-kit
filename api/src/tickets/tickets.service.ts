@@ -104,6 +104,7 @@ export class TicketsService {
     return this.events.tx(async (t) => {
       const ticket = (await this.tickets.findByPk(id, { transaction: t, lock: t.LOCK.UPDATE }))!;
       ticket.set(Object.fromEntries(Object.entries(dto).filter(([, v]) => v !== undefined)));
+      if (ticket.changed('callbackAt')) ticket.set('callbackAttempts', 0);
       const changed = (ticket.changed() || []) as string[];
       if (!changed.length) return ticket;
       await ticket.save({ transaction: t });

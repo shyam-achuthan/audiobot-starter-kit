@@ -33,6 +33,11 @@ export class CallsService {
           startWorkflow: dto.workflow,
           agentPath: [dto.workflow],
           language: dto.language ?? null,
+          direction: dto.direction ?? 'inbound',
+          remoteNumber: normalizePhone(dto.remoteNumber) ?? dto.remoteNumber ?? null,
+          localNumber: dto.localNumber ?? null,
+          // A caller's number from the phone network is a good default for the caller's phone.
+          callerPhone: dto.direction !== 'outbound' ? normalizePhone(dto.remoteNumber) : null,
         }, { transaction: t });
         await this.events.emit('call.started', `call:${call.id}`, callData(call), t);
         return call;

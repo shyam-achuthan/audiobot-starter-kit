@@ -6,6 +6,7 @@ const RANK: Record<string, number> = {
   lead_captured: 2,
   ticket_created: 3,
   callback_requested: 4,
+  transferred: 5,
 };
 
 export function strongerOutcome(current: string | null | undefined, next: string): string {
