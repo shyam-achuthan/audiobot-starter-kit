@@ -188,6 +188,8 @@ cat <<EOF
   API health:                                http://localhost:4000/health
   User guide:                                docs/guide.html
 
+  Optional CRM + helpdesk (Twenty, Chatwoot):  make up-crm && make crm-setup
+
   Useful:  make ps | make logs s=agent | make health | make down
   Network changed (new Wi-Fi)?  make ip
 EOF
