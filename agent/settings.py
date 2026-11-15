@@ -34,6 +34,9 @@ class Settings:
     stt_language: str  # "unknown" = auto-detect per utterance
     stt_mode: str
     stt_flush_signal: bool  # force a final transcript as soon as VAD sees end of speech
+    # Seconds without any frame (incl. pong) before the STT socket is treated as dead. LiveKit's
+    # 6 s default drops healthy Sarvam sockets: Sarvam often answers pings late mid-call.
+    stt_liveness_timeout: float
 
     # Text-to-speech
     tts_provider: str
@@ -65,6 +68,7 @@ class Settings:
             stt_language=_env("STT_LANGUAGE", "unknown"),
             stt_mode=_env("STT_MODE", "transcribe"),
             stt_flush_signal=_bool("STT_FLUSH_SIGNAL", True),
+            stt_liveness_timeout=_float("STT_LIVENESS_TIMEOUT", 30.0),
             tts_provider=_env("TTS_PROVIDER", "sarvam"),
             tts_model=_env("TTS_MODEL", "bulbul:v3"),
             tts_speaker=_env("TTS_SPEAKER", "priya"),

@@ -18,8 +18,10 @@ import os
 from livekit.agents import (
     AgentServer,
     AgentSession,
+    APIConnectOptions,
     JobContext,
     JobProcess,
+    SessionConnectOptions,
     UserInputTranscribedEvent,
     cli,
     inference,
@@ -127,6 +129,9 @@ async def entrypoint(ctx: JobContext) -> None:
         stt=stt,
         llm=llm,
         tts=tts,
+        conn_options=SessionConnectOptions(
+            stt_conn_options=APIConnectOptions(liveness_timeout=settings.stt_liveness_timeout),
+        ),
         turn_handling={
             # Local model only (no LiveKit Cloud). Covers en + hi; other languages
             # end the turn on silence using the endpointing delays below.
