@@ -103,6 +103,31 @@ else
   printf '  %sOptional: Vertex AI (Gemini served from Mumbai) — see docs/guide.html#vertex%s\n' "$D" "$N"
 fi
 
+# ---------------------------------------------------------------- 3b. admin account
+step "Admin account"
+if [[ -n "$(env_get ADMIN_EMAIL)" && -n "$(env_get ADMIN_PASSWORD)" ]]; then
+  ok "Owner account $(env_get ADMIN_EMAIL) is created on first start (if no accounts exist yet)"
+elif [[ $INTERACTIVE == 1 ]]; then
+  printf '  The dashboard needs an email + password sign-in. Create the owner account now,\n  or press Enter to create it in the browser on the first visit to /login.\n'
+  read -r -p "  Owner email (Enter to skip): " admin_email
+  if [[ -n "$admin_email" ]]; then
+    while :; do
+      read -r -s -p "  Password (10+ chars, letters plus numbers or symbols): " admin_pw; echo
+      read -r -s -p "  Repeat password: " admin_pw2; echo
+      if [[ "$admin_pw" != "$admin_pw2" ]]; then warn "Passwords don't match, try again"; continue; fi
+      if (( ${#admin_pw} < 10 )); then warn "Too short, try again"; continue; fi
+      break
+    done
+    env_set ADMIN_EMAIL "$admin_email"
+    env_set ADMIN_PASSWORD "$admin_pw"
+    ok "Owner account will be created on first start. Change the password in Admin → your account later."
+  else
+    warn "Skipped: open http://localhost:3000/login after start to create the owner account"
+  fi
+else
+  warn "No ADMIN_EMAIL/ADMIN_PASSWORD: create the owner account at http://localhost:3000/login"
+fi
+
 if [[ $START == 0 ]]; then
   step "Done (--no-start)"; echo "  Start later with: make up"; exit 0
 fi
@@ -149,12 +174,17 @@ if [[ -n "$(env_get GEMINI_API_KEY)" ]]; then
   [[ "$code" == 200 ]] && ok "LLM (agent-fast via LiteLLM) responds" || warn "LLM test returned HTTP $code — check GEMINI_API_KEY"
 fi
 [[ -n "$(env_get SARVAM_API_KEY)" ]] || warn "No SARVAM_API_KEY: calls will connect but the agent will report a config error"
+if curl -fsS --max-time 5 localhost:4000/v1/auth/status 2>/dev/null | grep -q '"needsSetup":true'; then
+  warn "No admin account yet: open http://localhost:3000/login to create the owner account"
+else
+  ok "Admin sign-in ready"
+fi
 
 # ---------------------------------------------------------------- 7. next steps
 step "Ready"
 cat <<EOF
   Demo (use Chrome, allow the microphone):  http://localhost:3000/demo
-  Admin / health:                            http://localhost:3000/admin
+  Admin dashboard (sign in):                 http://localhost:3000/admin
   API health:                                http://localhost:4000/health
   User guide:                                docs/guide.html
 
