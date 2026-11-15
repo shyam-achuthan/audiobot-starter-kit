@@ -9,7 +9,7 @@ type Draft = { [K in keyof AgentFields]: AgentFields[K] | undefined };
 const KEYS: (keyof AgentFields)[] = [
   'role', 'greeting', 'llmModel', 'ttsSpeaker', 'ttsPace',
   'endpointingMinDelay', 'endpointingMaxDelay', 'allowInterruptions', 'interruptionMinDuration',
-  'recordingConsent',
+  'recordingConsent', 'transferNumber',
 ];
 
 /** "Default" marker + reset link shown next to each field label. */
@@ -157,6 +157,13 @@ export default function AgentEditPage({ params }: { params: Promise<{ workflow: 
           </div>
         </Card>
       </div>
+
+      <Card title="Phone calls">
+        <Field label={<>Transfer to a person{state('transferNumber')}</>}
+          hint="Number (or sip: address) a phone caller is connected to when they ask for a human. Empty: the agent books a callback instead. Web calls always get a callback.">
+          <Input placeholder="+918045670000" value={draft.transferNumber ?? ''} onChange={(e) => set('transferNumber', e.target.value.trim())} />
+        </Field>
+      </Card>
 
       <Card title="Call recording">
         <Field label={<>Recording consent{state('recordingConsent')}</>}

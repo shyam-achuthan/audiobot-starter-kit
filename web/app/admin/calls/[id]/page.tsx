@@ -21,6 +21,8 @@ type CallDetail = {
   tickets: { id: string; ref: string; subject: string; type: string; priority: string; status: string }[];
   recording: Recording;
   traceUrl: string | null;
+  direction: 'inbound' | 'outbound'; remoteNumber: string | null; localNumber: string | null;
+  dialStatus: string | null; dialError: string | null;
   transcriptPurgedAt: string | null;
 };
 type Recording = {
@@ -144,11 +146,20 @@ export default function CallDetailPage({ params }: { params: Promise<{ id: strin
         <dl className="grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
           <Info label="Started">{fmtDate(call.startedAt)}</Info>
           <Info label="Duration">{fmtDuration(call.startedAt, call.endedAt)}</Info>
-          <Info label="Phone"><span className="tabular-nums">{call.callerPhone ?? '—'}</span></Info>
+          <Info label={call.channel === 'sip' ? (call.direction === 'outbound' ? 'Phone call to' : 'Phone call from') : 'Phone'}>
+            <span className="tabular-nums">{call.callerPhone ?? call.remoteNumber ?? '—'}</span>
+            {call.channel === 'sip' && call.localNumber && <span className="block text-xs text-zinc-500">via {call.localNumber}</span>}
+          </Info>
           <Info label="Language">{call.language ? LANGUAGE_LABELS[call.language] ?? call.language : '—'}</Info>
           <Info label="Agents">{call.agentPath.map((a) => AGENT_LABELS[a] ?? a).join(' → ')}</Info>
           <Info label="Median reply"><span className="tabular-nums">{fmtMs(call.medianE2eMs)}</span></Info>
         </dl>
+        {call.dialStatus && !['answered', 'dialing'].includes(call.dialStatus) && (
+          <p className="mt-4 text-sm text-amber-700 dark:text-amber-400">
+            Not connected: {({ no_answer: 'no answer', busy: 'busy', failed: 'the call failed', blocked: 'blocked' } as Record<string, string>)[call.dialStatus] ?? call.dialStatus}
+            {call.dialError && <span className="text-zinc-500"> ({call.dialError})</span>}
+          </p>
+        )}
         {call.traceUrl && (
           <p className="mt-4 text-sm">
             <a href={call.traceUrl} target="_blank" rel="noreferrer" className="text-zinc-600 underline-offset-2 hover:underline dark:text-zinc-400">

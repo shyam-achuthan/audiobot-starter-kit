@@ -9,6 +9,7 @@ export type AgentFields = {
   allowInterruptions: boolean;
   interruptionMinDuration: number;
   recordingConsent: 'off' | 'notice' | 'ask';
+  transferNumber: string;
 };
 
 export type AgentView = {

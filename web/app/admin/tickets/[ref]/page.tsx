@@ -6,12 +6,14 @@ import {
   Button, Card, CrmLinks, Field, LANGUAGE_LABELS, Notice, Select, TICKET_STATUS_LABELS, Textarea, adminApi, fmtDate, jsonInit,
 } from '../../_ui';
 import type { CrmLink } from '../../_ui';
+import { CallbackCard } from './_callback';
 
 type Ticket = {
   id: string; ref: string; createdAt: string; updatedAt: string; type: string; subject: string;
   description: string | null; priority: string; status: string; contactName: string | null;
   contactPhone: string | null; contactEmail: string | null; preferredCallbackTime: string | null;
   language: string | null; callId: string | null; leadId: string | null;
+  callbackAt: string | null; callbackAttempts: number; lastCallbackAt: string | null;
   crmLinks?: CrmLink[];
 };
 
@@ -85,16 +87,19 @@ export default function TicketDetailPage({ params }: { params: Promise<{ ref: st
             <Button onClick={() => void save()} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
           </div>
         </Card>
-        <Card title="Contact">
-          <dl className="space-y-3">
-            {contact.map(([label, v]) => (
-              <div key={label}>
-                <dt className="text-xs text-zinc-500">{label}</dt>
-                <dd className="mt-0.5 text-sm tabular-nums">{v ?? '—'}</dd>
-              </div>
-            ))}
-          </dl>
-        </Card>
+        <div className="space-y-6">
+          <Card title="Contact">
+            <dl className="space-y-3">
+              {contact.map(([label, v]) => (
+                <div key={label}>
+                  <dt className="text-xs text-zinc-500">{label}</dt>
+                  <dd className="mt-0.5 text-sm tabular-nums">{v ?? '—'}</dd>
+                </div>
+              ))}
+            </dl>
+          </Card>
+          {t.contactPhone && <CallbackCard ticket={t} onChange={(x) => setT({ ...t, ...x })} />}
+        </div>
       </div>
     </div>
   );

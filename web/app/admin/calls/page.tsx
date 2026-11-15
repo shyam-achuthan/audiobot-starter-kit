@@ -10,10 +10,13 @@ import {
 type Call = {
   id: string; startedAt: string; endedAt: string | null; status: string; outcome: string | null;
   agentPath: string[]; language: string | null; callerName: string | null; callerPhone: string | null;
-  turnCount: number; medianE2eMs: number | null; channel: string;
+  turnCount: number; medianE2eMs: number | null; channel: string; direction: 'inbound' | 'outbound';
+  remoteNumber: string | null; dialStatus: string | null;
 };
 
 const LIMIT = 25;
+
+const DIAL_LABELS: Record<string, string> = { no_answer: 'No answer', busy: 'Busy', failed: 'Call failed', blocked: 'Blocked' };
 
 export default function CallsPage() {
   const [f, setF] = useState({ q: '', outcome: '', workflow: '', status: '' });
@@ -58,14 +61,19 @@ export default function CallsPage() {
             </td>
             <td className="px-4 py-2.5">
               <div>{c.callerName ?? <span className="text-zinc-400">Unknown</span>}</div>
-              {c.callerPhone && <div className="text-xs tabular-nums text-zinc-500">{c.callerPhone}</div>}
+              <div className="text-xs tabular-nums text-zinc-500">
+                {c.channel === 'sip' ? (c.direction === 'outbound' ? '↗ Phone · ' : '↙ Phone · ') : 'Web · '}
+                {c.callerPhone ?? c.remoteNumber ?? ''}
+              </div>
             </td>
             <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400">{c.agentPath.map((a) => AGENT_LABELS[a] ?? a).join(' → ')}</td>
             <td className="px-4 py-2.5">{c.language ? LANGUAGE_LABELS[c.language] ?? c.language : '—'}</td>
             <td className="px-4 py-2.5">
               {c.status === 'active'
-                ? <Badge tone="blue">Live</Badge>
-                : <Badge tone={outcomeTone(c.outcome)}>{OUTCOME_LABELS[c.outcome ?? 'unknown']}</Badge>}
+                ? <Badge tone="blue">{c.dialStatus === 'dialing' ? 'Ringing' : 'Live'}</Badge>
+                : c.dialStatus && !['answered', 'dialing'].includes(c.dialStatus)
+                  ? <Badge tone="amber">{DIAL_LABELS[c.dialStatus] ?? c.dialStatus}</Badge>
+                  : <Badge tone={outcomeTone(c.outcome)}>{OUTCOME_LABELS[c.outcome ?? 'unknown']}</Badge>}
             </td>
             <td className="px-4 py-2.5 tabular-nums">{c.turnCount}</td>
             <td className="px-4 py-2.5 tabular-nums">{fmtMs(c.medianE2eMs)}</td>

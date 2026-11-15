@@ -133,11 +133,11 @@ export const LANGUAGE_LABELS: Record<string, string> = {
 
 export const OUTCOME_LABELS: Record<string, string> = {
   lead_captured: 'Lead captured', ticket_created: 'Ticket created', callback_requested: 'Callback requested',
-  info_only: 'Info only', abandoned: 'Abandoned', in_progress: 'In progress', unknown: 'Unknown',
+  info_only: 'Info only', abandoned: 'Abandoned', transferred: 'Transferred to a person', in_progress: 'In progress', unknown: 'Unknown',
 };
 
 export function outcomeTone(o: string | null): 'green' | 'blue' | 'amber' | 'neutral' {
-  if (o === 'lead_captured' || o === 'callback_requested') return 'green';
+  if (o === 'lead_captured' || o === 'callback_requested' || o === 'transferred') return 'green';
   if (o === 'ticket_created') return 'blue';
   if (o === 'abandoned') return 'amber';
   return 'neutral';
