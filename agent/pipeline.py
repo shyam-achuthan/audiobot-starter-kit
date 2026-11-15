@@ -89,13 +89,23 @@ def build_tts(s: Settings, *, speaker: str | None = None, pace: float | None = N
     return _pick(TTS_PROVIDERS, s.tts_provider, "TTS")(s, speaker=speaker, pace=pace, language=language)
 
 
-def build_llm(s: Settings, model: str | None = None) -> lk_llm.LLM:
-    """All LLM traffic goes through LiteLLM, which handles provider routing + fallbacks."""
+def build_llm(s: Settings, model: str | None = None, trace: dict | None = None) -> lk_llm.LLM:
+    """All LLM traffic goes through LiteLLM, which handles provider routing + fallbacks.
+
+    `trace` is LiteLLM request metadata (session_id, generation_name, tags, ...); LiteLLM forwards
+    it to Langfuse so every turn of a call lands in one Langfuse session.
+    """
     return openai.LLM(
         model=model or s.llm_model,
         base_url=f"{s.litellm_url}/v1",
         api_key=s.litellm_api_key,
         temperature=s.llm_temperature,
+        **({
+            "extra_body": {"metadata": trace},
+            # LiveKit adds a per-request x-livekit-session-id header, which LiteLLM would otherwise use
+            # as the session; its own x-litellm-session-id header takes precedence.
+            "extra_headers": {"x-litellm-session-id": trace["session_id"]},
+        } if trace else {}),
     )
 
 

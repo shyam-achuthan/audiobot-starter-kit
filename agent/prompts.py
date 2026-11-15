@@ -122,6 +122,16 @@ def greeting_for(workflow: str, override: str | None = None) -> str:
     return override or GREETINGS.get(workflow, GREETINGS["router"])
 
 
+RECORDING_NOTICE = (
+    " Then, in one short sentence, tell the caller this call is recorded for quality and that they can "
+    "say so if they would prefer it not to be."
+)
+RECORDING_ASK = (
+    " Then, in one short sentence, ask whether it is okay to record this call for quality. When they "
+    "answer, call set_recording_consent before continuing."
+)
+
+
 def handoff_for(summary: str) -> str:
     return (
         "You have just taken over this call. Do not greet or introduce yourself again. "

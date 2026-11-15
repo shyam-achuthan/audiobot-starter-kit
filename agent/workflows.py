@@ -8,6 +8,8 @@ the LLM can recover (e.g. "ask the caller to repeat the number").
 
 from __future__ import annotations
 
+import asyncio
+
 import logging
 import re
 from dataclasses import dataclass, field
@@ -24,6 +26,10 @@ from api_client import ApiClient, ApiError
 from settings import Settings
 
 logger = logging.getLogger("audiobots.workflows")
+
+# How long the greeting waits to learn whether recording started (the API answers in ~0.5 s when
+# the recorder is up). Longer means dead air at the start of calls when it is down.
+RECORDING_START_WAIT_S = 1.0
 
 
 @dataclass
@@ -43,17 +49,36 @@ class CallData:
     settings: Settings = field(default_factory=Settings.from_env)
     # Admin overrides per workflow (from /v1/agents), loaded at the start of the call.
     overrides: dict[str, dict] = field(default_factory=dict)
-    # One LLM per model alias and one TTS per (voice, pace), shared across handoffs.
-    _llms: dict[str, lk_llm.LLM] = field(default_factory=dict)
+    # Recording consent mode of the answering agent (off | notice | ask) and the recording state
+    # the API last reported (recording | declined | unavailable | ...).
+    recording_consent: str = "off"
+    recording_status: str | None = None
+    recording_task: asyncio.Task | None = None
+    # One LLM per (model alias, agent) and one TTS per (voice, pace), shared across handoffs.
+    _llms: dict[tuple[str, str], lk_llm.LLM] = field(default_factory=dict)
     _ttss: dict[tuple[str, float], lk_tts.TTS] = field(default_factory=dict)
 
     def agent_settings(self, workflow: str) -> agent_config.AgentSettings:
         return agent_config.resolve(workflow, self.settings, self.overrides.get(workflow))
 
-    def llm_for(self, model: str) -> lk_llm.LLM:
-        if model not in self._llms:
-            self._llms[model] = pipeline.build_llm(self.settings, model)
-        return self._llms[model]
+    def llm_for(self, model: str, workflow: str | None = None) -> lk_llm.LLM:
+        agent = workflow or self.workflow
+        key = (model, agent)
+        if key not in self._llms:
+            self._llms[key] = pipeline.build_llm(self.settings, model, trace=self.trace_metadata(agent))
+        return self._llms[key]
+
+    def trace_metadata(self, agent: str) -> dict | None:
+        """Langfuse tags for this call's LLM requests (one session per call, one name per agent)."""
+        if not self.call_id:
+            return None
+        return {
+            "session_id": self.call_id,
+            "trace_name": f"{self.channel} call",
+            "generation_name": agent,
+            "tags": ["voice", self.channel, agent],
+            "trace_metadata": {"call_id": self.call_id, "room": self.room},
+        }
 
     def tts_for(self, speaker: str, pace: float) -> lk_tts.TTS:
         key = (speaker, pace)
@@ -119,7 +144,7 @@ class BaseAgent(Agent):
         super().__init__(
             instructions=prompts.instructions_for(self.workflow, call.language, call.profile, role=cfg.role),
             chat_ctx=chat_ctx,
-            llm=call.llm_for(cfg.llm_model),
+            llm=call.llm_for(cfg.llm_model, self.workflow),
             tts=call.tts_for(cfg.tts_speaker, cfg.tts_pace),
             turn_handling={
                 "endpointing": {"min_delay": cfg.endpointing_min_delay, "max_delay": cfg.endpointing_max_delay},
@@ -136,12 +161,26 @@ class BaseAgent(Agent):
             self.call.agent_path.append(self.workflow)
         logger.info("agent active: %s (path=%s model=%s voice=%s)", self.workflow, self.call.agent_path,
                     self.cfg.llm_model, self.cfg.tts_speaker)
-        instructions = (
-            prompts.handoff_for(self.handoff_summary)
-            if self.handoff_summary
-            else prompts.greeting_for(self.workflow, self.cfg.greeting)
-        )
+        if self.handoff_summary:
+            instructions = prompts.handoff_for(self.handoff_summary)
+        else:
+            instructions = prompts.greeting_for(self.workflow, self.cfg.greeting) + await self._consent_line()
         self.session.generate_reply(instructions=instructions)
+
+    async def _consent_line(self) -> str:
+        """What the greeting adds about recording. Only claims recording if the recorder really started."""
+        mode = self.call.recording_consent
+        if mode == "ask" and self.call.call_id:
+            return prompts.RECORDING_ASK
+        if mode == "notice" and self.call.recording_task is not None:
+            try:
+                result = await asyncio.wait_for(asyncio.shield(self.call.recording_task), RECORDING_START_WAIT_S)
+                self.call.recording_status = result.get("status")
+            except (asyncio.TimeoutError, ApiError) as e:
+                logger.warning("recording did not start in time: %s", getattr(e, "message", e))
+            if self.call.recording_status == "recording":
+                return prompts.RECORDING_NOTICE
+        return ""
 
     async def set_language(self, language: str) -> None:
         """Pin the reply language in the system prompt (small models drift otherwise)."""
@@ -225,6 +264,35 @@ class BaseAgent(Agent):
                                 preferredCallbackTime=preferred_time)
         ref = await self._callback_ticket(reason, preferred_time, f"Human callback requested: {name}")
         return f"Callback booked as {_spoken_ref(ref)}. Tell the caller a team member will call them."
+
+    @function_tool()
+    async def set_recording_consent(self, context: RunContext[CallData], granted: bool) -> str:
+        """Record the caller's answer about call recording. Call it when they agree to or object to recording,
+        at any point in the call (for example "please don't record this").
+
+        Args:
+            granted: True if the caller is fine with recording, False if they do not want it.
+        """
+        call = self.call
+        if call.recording_consent == "off" or not call.call_id:
+            return "This call is not being recorded. Reassure the caller and continue."
+        try:
+            if granted:
+                if call.recording_status in ("recording", "processing", "ready"):
+                    return "Recording continues. Thank the caller and continue."
+                result = await call.api.recording(call.call_id, "start", call.recording_consent)
+            else:
+                result = await call.api.recording(call.call_id, "discard")
+        except ApiError as e:
+            logger.warning("recording consent update failed: %s", e.message)
+            return "Recording could not be changed right now. Do not mention recording again; continue helping."
+        call.recording_status = result.get("status")
+        logger.info("recording consent granted=%s -> %s", granted, call.recording_status)
+        if not granted:
+            return "Recording stopped and deleted. Confirm briefly to the caller, then continue."
+        if call.recording_status == "recording":
+            return "Recording started. Thank the caller and continue."
+        return "Recording is not available right now. Do not mention it again; continue helping."
 
     @function_tool()
     async def end_call(self, context: RunContext[CallData]) -> None:

@@ -61,6 +61,11 @@ class ApiClient:
     async def add_turn(self, call_id: str, **fields: Any) -> dict:
         return await self._req("POST", f"/v1/calls/{call_id}/turns", json=fields)
 
+    async def recording(self, call_id: str, action: str, consent: str | None = None) -> dict:
+        """action: start | stop | discard. Returns the call's recording summary."""
+        body = {"action": action, **({"consent": consent} if consent else {})}
+        return await self._req("POST", f"/v1/calls/{call_id}/recording", json=body)
+
     # ---- leads ----
     async def create_lead(self, **fields: Any) -> dict:
         return await self._req("POST", "/v1/leads", json=fields)

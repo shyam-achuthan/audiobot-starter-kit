@@ -11,6 +11,7 @@ model, voice and turn timing come from the admin dashboard, loaded at the start 
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -102,9 +103,13 @@ async def entrypoint(ctx: JobContext) -> None:
     # The answering agent's settings drive the session; later agents bring their own
     # model, voice and endpointing (see BaseAgent).
     start = call.agent_settings(workflow)
+    call.recording_consent = start.recording_consent
+    if call.call_id and start.recording_consent == "notice":
+        # Starts in the background; the greeting waits briefly for it before mentioning recording.
+        call.recording_task = asyncio.create_task(api.recording(call.call_id, "start", "notice"))
     try:
         stt = pipeline.build_stt(settings)
-        llm = call.llm_for(start.llm_model)
+        llm = call.llm_for(start.llm_model, workflow)
         tts = call.tts_for(start.tts_speaker, start.tts_pace)
     except ValueError as e:
         # Typically a missing provider key. Tell the caller's UI instead of silently dying.
@@ -217,7 +222,7 @@ async def entrypoint(ctx: JobContext) -> None:
     await session.start(
         agent=AGENTS[workflow](call),
         room=ctx.room,
-        record=False,  # keep audio/transcripts off LiveKit Cloud; recording is Phase 6
+        record=False,  # LiveKit Cloud recording stays off; calls are recorded by our own Egress (Phase 6)
     )
 
 

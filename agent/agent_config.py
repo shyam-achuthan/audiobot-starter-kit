@@ -19,6 +19,7 @@ from settings import Settings
 logger = logging.getLogger("audiobots.agent_config")
 
 WORKFLOWS = ("router", "lead_qualification", "sales", "support")
+CONSENT_MODES = ("off", "notice", "ask")
 
 
 @dataclass(frozen=True)
@@ -32,6 +33,7 @@ class AgentSettings:
     endpointing_max_delay: float
     allow_interruptions: bool
     interruption_min_duration: float
+    recording_consent: str  # off | notice | ask
 
     def to_api(self) -> dict:
         """camelCase keys, as stored by the API."""
@@ -43,6 +45,7 @@ class AgentSettings:
             "endpointingMaxDelay": d["endpointing_max_delay"],
             "allowInterruptions": d["allow_interruptions"],
             "interruptionMinDuration": d["interruption_min_duration"],
+            "recordingConsent": d["recording_consent"],
         }
 
 
@@ -57,6 +60,7 @@ def builtin(workflow: str, s: Settings) -> AgentSettings:
         endpointing_max_delay=s.endpointing_max_delay,
         allow_interruptions=True,
         interruption_min_duration=s.interruption_min_duration,
+        recording_consent=s.recording_consent if s.recording_consent in CONSENT_MODES else "notice",
     )
 
 
@@ -90,6 +94,7 @@ def resolve(workflow: str, s: Settings, overrides: dict | None) -> AgentSettings
         endpointing_max_delay=max(max_delay, min_delay),
         allow_interruptions=o["allowInterruptions"] if isinstance(o.get("allowInterruptions"), bool) else base.allow_interruptions,
         interruption_min_duration=pick(_num(o.get("interruptionMinDuration"), 0.1, 2), base.interruption_min_duration),
+        recording_consent=o["recordingConsent"] if o.get("recordingConsent") in CONSENT_MODES else base.recording_consent,
     )
 
 
