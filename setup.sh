@@ -95,7 +95,7 @@ ok ".env ready (owner-only permissions, gitignored)"
 # ---------------------------------------------------------------- 3. provider keys
 step "Provider keys"
 ask_secret SARVAM_API_KEY "speech-to-text + text-to-speech (required for voice)" "https://dashboard.sarvam.ai"
-ask_secret GEMINI_API_KEY "default LLM via Google AI Studio (required for replies)" "https://aistudio.google.com/apikey"
+ask_secret GEMINI_API_KEY "default LLM via Google AI Studio (required; enable billing, free tier is 20 requests/day)" "https://aistudio.google.com/apikey"
 if [[ -f infra/litellm/secrets/vertex-sa.json ]]; then
   ok "Vertex AI key found (infra/litellm/secrets/vertex-sa.json)"
   [[ -n "$(env_get VERTEXAI_PROJECT)" ]] || warn "VERTEXAI_PROJECT is empty in .env"
