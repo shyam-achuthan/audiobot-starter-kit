@@ -1,59 +1,133 @@
+<div align="center">
+
 # AudioBots
 
-Low-latency voice agents (sales, support, lead qualification) for the web and SIP, built on self-hosted LiveKit. See [PLAN.md](PLAN.md) for the architecture and the phases.
+**Voice agents for Indian businesses: they answer the phone and your website, in six Indian languages.**
 
-**Full setup & user guide:** open [docs/guide.html](docs/guide.html) in a browser (architecture, configuration, latency, troubleshooting).
+Sales, support and lead qualification over WebRTC and SIP, with a full admin dashboard, CRM sync,
+call recording and analytics. Self-hosted on Docker; speech and LLMs are cloud APIs (no GPU needed).
 
-## Quick start (local, Docker)
+![LiveKit](https://img.shields.io/badge/LiveKit-Agents%201.8-1f2937)
+![Sarvam](https://img.shields.io/badge/Speech-Sarvam%20saaras%20%2B%20bulbul-2563eb)
+![LLM](https://img.shields.io/badge/LLM-Gemini%20via%20LiteLLM-0f766e)
+![Stack](https://img.shields.io/badge/NestJS%20%C2%B7%20Next.js%20%C2%B7%20Postgres-Docker-6b21a8)
+
+English · हिन्दी / Hinglish · தமிழ் · తెలుగు · ಕನ್ನಡ · മലയാളം
+
+<img src="docs/screenshots/overview.png" alt="AudioBots admin overview: calls, leads, tickets, reply-time charts" width="900">
+
+</div>
+
+## What it does
+
+- **Talks like a person.** Streaming speech-to-text, LLM and text-to-speech with barge-in; about **3 s median voice-to-voice**, every stage timed on every turn. The language is detected per sentence, and the reply and voice switch with it.
+- **Does real work.** A receptionist hands callers to *sales*, *support* or *lead qualification*. They capture leads with a score, raise tickets, book callbacks at the time the caller asked for, and answer only from your knowledge base.
+- **Answers the phone.** Numbers ring the agent you choose; agents call customers back on schedule (within calling hours, never to the do-not-call list) and can hand a caller to a person.
+- **Lives on your website.** One `<script>` tag adds a voice button with live captions, locked to your domains, with rate limits and call caps.
+- **Fits your stack.** Leads land in **Twenty CRM**, tickets in **Chatwoot** (status syncs both ways), and any system can get **signed webhooks** with retries.
+- **Is accountable.** Calls are recorded with consent (set per agent), played back next to the transcript, traced in **Langfuse**, and deleted on your retention schedule.
+
+## A look around
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/call-detail.png" alt="Call page with recording player and transcript"><br><b>Every call</b>: recording, transcript, latency per turn, linked lead and ticket, LLM trace.</td>
+    <td width="50%"><img src="docs/screenshots/agent-settings.png" alt="Per-agent settings"><br><b>Agents without redeploys</b>: instructions, model, voice, turn timing, recording consent, transfer number.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/widget-on-site.png" alt="Voice widget on a website"><br><b>Website widget</b>: a voice button on any allowed site, in a Shadow DOM so the site's CSS can't break it.</td>
+    <td><img src="docs/screenshots/phone.png" alt="Phone numbers and calling rules"><br><b>Phone</b>: numbers per agent, calling hours, automatic callbacks, do-not-call list.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/knowledge.png" alt="Knowledge bases"><br><b>Knowledge</b>: documents, FAQs and web pages; embeddings provider chosen per knowledge base.</td>
+    <td><img src="docs/screenshots/integrations.png" alt="Integrations"><br><b>Integrations</b>: Twenty and Chatwoot status, webhook endpoints, delivery log with retries.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/ticket-callback.png" alt="Callback ticket"><br><b>Callbacks</b>: <i>Call now</i> or a scheduled time; the agent opens with why it's calling.</td>
+    <td><img src="docs/screenshots/widgets.png" alt="Widgets admin"><br><b>Widgets</b>: allowed websites, colours, captions, limits and a copy-paste snippet.</td>
+  </tr>
+</table>
+
+## Quick start
+
+You need Docker Desktop, a [Sarvam AI](https://www.sarvam.ai) key and a Gemini key (billing enabled; the free tier allows only 20 requests a day).
 
 ```bash
-./setup.sh     # checks prerequisites, creates .env, asks for keys, builds, starts, verifies
+git clone https://github.com/shyam-achuthan/audiobot-starter-kit.git audiobots
+cd audiobots
+./setup.sh
 ```
 
-Or step by step:
+`setup.sh` checks prerequisites, creates `.env` with generated secrets, asks for your keys, builds, starts and verifies everything, and offers to create the owner account. Then:
 
-```bash
-make up        # creates .env (secrets + LAN IP), builds and starts the core stack
-make health    # API readiness: postgres, livekit, litellm
-```
-
-| URL | What |
+| Open | For |
 |---|---|
-| http://localhost:3000/demo | Demo page (starts a call with the agent) |
-| http://localhost:3000/admin | Admin dashboard (sign in): overview charts, calls, leads, tickets, agent settings, knowledge, integrations, users |
-| http://localhost:3000/admin/setup | First-run product setup (business profile, knowledge, test call) |
-| http://localhost:4000/health | API readiness JSON |
-| http://localhost:9001 | RustFS console (S3 keys in `.env`) |
-| http://localhost:4100 | LiteLLM gateway (master key in `.env`) |
+| http://localhost:3000/demo | Talk to the agents in the browser |
+| http://localhost:3000/admin | The dashboard (start with **Setup**: describe your business and add knowledge) |
+| [docs/guide.html](docs/guide.html) | The full guide: architecture, configuration, latency, troubleshooting |
 
-Add provider keys to `.env` (`SARVAM_API_KEY`, `GEMINI_API_KEY`, …) and run `make up` again.
+A sample knowledge pack for a fictional product (QuickBill) is in [samples/knowledge](samples/knowledge).
 
-> **Gemini billing:** enable billing on the Gemini key in Google AI Studio. The free tier allows only 20 requests a day per model, which a couple of test calls use up.
+### Optional parts
 
-**First sign-in:** `./setup.sh` offers to create the owner account; otherwise open `/login` and create it there (only possible while no accounts exist). Lost the password? `make admin-password email=you@example.com`.
+Each is a Docker Compose profile, so the core stays light:
 
-**CRM and helpdesk (optional):** `make up-crm` starts a local Twenty CRM (http://localhost:3020) and Chatwoot (http://localhost:3030); `make crm-setup` connects them. Leads then appear in Twenty and tickets in Chatwoot automatically, and resolving a conversation in Chatwoot resolves the ticket. Any other system can receive signed webhooks (Admin → Integrations).
+| Command | Adds |
+|---|---|
+| `make up-sip` | **Phone calls** through the LiveKit SIP bridge. Add numbers under Admin → Phone and point your SIP trunk (Exotel, Plivo, Tata…) or a softphone at the address shown there. `make sip-test` runs a smoke test with a scripted test phone. |
+| `make up-rec` | **Call recording** (LiveKit Egress → RustFS, OGG/Opus), with consent per agent and retention in Admin → Setup |
+| `make up-obs` | **Langfuse** at localhost:3040: every LLM request, grouped per call |
+| `make up-crm` then `make crm-setup` | Local **Twenty CRM** and **Chatwoot**, connected automatically (Twenty needs one API key pasted) |
 
-**Recording and tracing (optional):** `make up-rec` adds the call recorder (LiveKit Egress); recordings play on each call page. Each agent's *Recording consent* setting decides whether callers are told and can opt out (default), are asked first, or aren't recorded; retention is under Admin → Setup. `make up-obs` starts Langfuse (http://localhost:3040, login in `.env`) with a trace of every LLM call, linked from the call page.
-
-**Phone calls (optional):** `make up-sip` starts the LiveKit SIP bridge. Add numbers under Admin → Phone and pick which agent answers each; point your SIP trunk (or a softphone) at the address shown there. With `SIP_OUTBOUND_*` set in `.env`, agents call customers back ("Call now" on tickets, scheduled callbacks, or `POST /v1/calls/outbound`) within calling hours and never to numbers on the do-not-call list, and can transfer a caller to a person. `make sip-test` runs a smoke test with a scripted test phone.
-
-**Website widget:** under Admin → Widgets, create a widget, list the websites allowed to use it, and paste the snippet (`<script src=".../widget.js" data-key="wk_..." async>`) into your site. Visitors get a voice button with live captions; per-widget limits cap concurrent calls and call length.
-
-Then open `/admin/setup`: describe your business and add documents, FAQs or web pages to a knowledge base. Agents quote prices and policies only from that knowledge base. Each agent's instructions, LLM, voice and turn timing can be changed under **Agents**; changes apply to the next call. A sample pack for a fictional product is in [samples/knowledge](samples/knowledge).
-
-### Notes
-- **Network changes:** LiveKit advertises your Mac's LAN IP, so browsers and containers can both reach it. After switching Wi-Fi, run `make ip`.
-- `make logs s=agent` tails a single service. `make down` stops everything. `make clean` also deletes data.
-
-## Layout
+## Architecture
 
 ```
-api/      NestJS API (tokens, business logic, webhooks, CRM sync)
-agent/    Python LiveKit Agents worker (conversation)
-web/      Next.js admin + demo page
-infra/    LiveKit, LiteLLM, Postgres config
-scripts/  helper scripts
+ Browser / widget ──WebRTC──┐                      ┌── NestJS API ── Postgres (pgvector)
+                            ├── LiveKit ── Agent ──┤      │  leads, tickets, calls, knowledge,
+ Phone ──SIP trunk── SIP ───┘   (Docker)  (Python) │      │  outbox → webhooks, Twenty, Chatwoot
+                                         │         └── LiteLLM ── Gemini / GPT / Claude (hosted)
+                                Sarvam STT + TTS
+ Next.js dashboard + widget.js ── API        Egress → RustFS (recordings)    Langfuse (traces)
+```
+
+- **Agent** (`agent/`, LiveKit Agents, Python): the conversation, tools and handoffs.
+- **API** (`api/`, NestJS + Sequelize): the system of record, auth, recordings, telephony, widgets and the webhook outbox.
+- **Web** (`web/`, Next.js + Tailwind): the dashboard, demo page and the embeddable `widget.js` (Vite).
+- **Every model sits behind an alias** (`agent-fast`, `embed-gemini`) in [`infra/litellm/config.yaml`](infra/litellm/config.yaml), so switching providers is a config change.
+
+Decisions, phases and trade-offs are in [PLAN.md](PLAN.md).
+
+## Status
+
+Phases 0–8 are done and tested with scripted calls (web and SIP):
+
+| | |
+|---|---|
+| ✅ Voice loop, six languages, latency telemetry | ✅ Workflows: receptionist, sales, support, lead qualification |
+| ✅ Knowledge base (RAG) with per-KB embeddings | ✅ Admin dashboard, users and roles, per-agent settings |
+| ✅ Webhooks, Twenty CRM, Chatwoot | ✅ Recording with consent, retention, Langfuse |
+| ✅ Phone: inbound, outbound, scheduled callbacks, transfer | ✅ Website widget with allowed origins and limits |
+
+Before going live: pick a SIP trunk provider, a domain with TLS, and keep the API port private (visitors reach it through the web app). Models stay cloud-hosted by design.
+
+## Handy commands
+
+```bash
+make help                               # every target
+make logs s=agent                       # follow one service
+make ip                                 # after changing Wi-Fi (LiveKit advertises your LAN IP)
+make admin-password email=you@example.com
+make down                               # stop (keeps data); make clean also deletes data
+```
+
+## Repository layout
+
+```
+agent/    Python LiveKit Agents worker (conversation, tools, phone, scenario tests)
+api/      NestJS API (business logic, recordings, telephony, widgets, webhooks, CRM sync)
+web/      Next.js dashboard, demo page and widget.js
+infra/    LiveKit, LiteLLM, Postgres config; scripted SIP test phone
+scripts/  setup, env, CRM and SIP helpers
 samples/  sample knowledge pack (fictional QuickBill product)
-docs/     setup & user guide (guide.html)
+docs/     guide.html and screenshots
 ```

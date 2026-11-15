@@ -558,6 +558,10 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
 
 <section id="dashboard">
   <h2>Admin dashboard</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin:12px 0 18px">
+    <figure style="margin:0"><img src="screenshots/overview.png" alt="Overview with calls, leads, tickets and reply-time charts" style="width:100%;border:1px solid var(--line, #ddd);border-radius:8px"><figcaption class="muted">Overview</figcaption></figure>
+    <figure style="margin:0"><img src="screenshots/call-detail.png" alt="Call page with recording and transcript" style="width:100%;border:1px solid var(--line, #ddd);border-radius:8px"><figcaption class="muted">A call: recording, transcript, latency</figcaption></figure>
+  </div>
   <p>Sign in at <a href="http://localhost:3000/admin">localhost:3000/admin</a> with an email and password.</p>
   <h3>First sign-in</h3>
   <ul>
@@ -574,6 +578,8 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
     <tr><td><strong>Tickets</strong></td><td>Open and in-progress tickets by default. Change status inline, filter by type (support or callback) and priority, search by ticket number, subject, name or phone. A ticket page lets you edit the description, status and priority.</td></tr>
     <tr><td><strong>Agents</strong></td><td>Per-agent settings, described below.</td></tr>
     <tr><td><strong>Knowledge</strong>, <strong>Setup</strong></td><td>See <a href="#setup-knowledge">Setup &amp; knowledge</a>. Setup also holds <em>Data retention</em> for recordings and transcripts (see <a href="#recording">Recording &amp; tracing</a>).</td></tr>
+    <tr><td><strong>Phone</strong> (owners only)</td><td>SIP bridge status, numbers and which agent answers each, outgoing call rules, do-not-call list. See <a href="#phone">Phone calls</a>.</td></tr>
+    <tr><td><strong>Widgets</strong> (owners only)</td><td>Website widgets: allowed sites, look, limits, snippet and preview. See <a href="#widget">Website widget</a>.</td></tr>
     <tr><td><strong>Integrations</strong> (owners only)</td><td>Twenty CRM and Chatwoot status, webhook endpoints and the delivery log. See <a href="#integrations">Integrations</a>.</td></tr>
     <tr><td><strong>Users</strong> (owners only)</td><td>Add admins or owners, change roles, set a new password for someone, disable or delete accounts. At least one active owner always remains.</td></tr>
   </table></div>
@@ -839,7 +845,7 @@ curl -s localhost:4000/v1/tickets/1004  -H "Authorization: Bearer $T"</pre></div
   <h2>Services &amp; URLs</h2>
   <div class="table-wrap"><table>
     <tr><th>Service</th><th>URL / port</th><th>Purpose</th></tr>
-    <tr><td><code>web</code></td><td><a href="http://localhost:3000">localhost:3000</a></td><td>Demo page and admin (Next.js): <code>/login</code>, <code>/admin</code> (overview), calls, leads, tickets, agents, knowledge, setup, integrations, users</td></tr>
+    <tr><td><code>web</code></td><td><a href="http://localhost:3000">localhost:3000</a></td><td>Demo page and admin (Next.js): <code>/login</code>, <code>/admin</code> (overview), calls, leads, tickets, agents, knowledge, setup, phone, widgets, integrations, users; <code>/widget.js</code> and <code>/widget-preview</code></td></tr>
     <tr><td><code>api</code></td><td><a href="http://localhost:4000/health">localhost:4000</a></td><td>NestJS: <code>/health</code>, <code>/health/live</code>, <code>POST /v1/livekit/token</code></td></tr>
     <tr><td><code>livekit</code></td><td><code>ws://localhost:7880</code>, TCP 7881, UDP 50000–50100</td><td>WebRTC media server</td></tr>
     <tr><td><code>agent</code></td><td>internal (health on :8081)</td><td>Voice agent workers</td></tr>
@@ -969,13 +975,15 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
   <h2>Project structure</h2>
   <div class="code"><pre>audiobots/
 ├── setup.sh                 one-command setup
-├── docker-compose.yml       all services (core + future profiles)
+├── docker-compose.yml       all services (core + crm, recording, observability, sip profiles)
 ├── Makefile                 up / down / logs / health / ip …
 ├── .env.example             every setting, documented
 ├── PLAN.md                  decisions + phased roadmap
 ├── docs/guide.html          this guide
+├── docs/screenshots/        images used in the README
 ├── agent/                   Python · LiveKit Agents
-│   ├── main.py              session setup, call record, turn-taking, language switching
+│   ├── main.py              session setup, call record, turn-taking, language switching, call caps
+│   ├── phone.py             SIP calls: caller/dialled number, wait for pickup, transfer
 │   ├── workflows.py         router / lead / sales / support agents + tools
 │   ├── api_client.py        HTTP client for the NestJS API
 │   ├── pipeline.py          STT / LLM / TTS provider registries
@@ -983,19 +991,24 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
 │   ├── prompts.py           workflow instructions + voice rules
 │   ├── telemetry.py         per-turn latency + live transcript events
 │   ├── languages.py         supported languages
-│   └── scripts/             e2e call + benchmarks
+│   └── scripts/             scenario calls, SIP test audio, e2e call, benchmarks
 ├── api/                     NestJS + Sequelize
 │   └── src/                 auth/ agents/ stats/ calls/ leads/ tickets/ knowledge/ profile/ livekit/ health/
 │       ├── integrations/    event outbox, delivery worker, webhooks, connectors/ (twenty, chatwoot)
+│       ├── recordings/      egress start/stop, playback, retention
+│       ├── telephony/       numbers, LiveKit SIP trunks, outbound calls, callback scheduler, DND
+│       ├── widgets/         website widgets: origins, rate limits, call caps
 │       └── database/        models.ts, migrations/, migrator.ts
 ├── web/                     Next.js: /demo, /login, /admin/*, /admin-api proxy (adds the session)
+│   └── widget/              widget.js source (Vite, Shadow DOM) → public/widget.js
 ├── samples/knowledge/       fictional QuickBill docs for demos and tests
 ├── infra/
 │   ├── livekit/livekit.yaml
 │   ├── litellm/config.yaml  model aliases, fallbacks
 │   ├── litellm/secrets/     gitignored (Vertex key)
-│   └── postgres/init/       creates DBs + pgvector
-└── scripts/                 init-env.sh, tune-latency.sh, crm-setup.sh, chatwoot-bootstrap.rb</pre></div>
+│   ├── postgres/init/       creates DBs + pgvector
+│   └── testphone/           scripted SIP phone (baresip) for tests
+└── scripts/                 init-env.sh, tune-latency.sh, crm-setup.sh, chatwoot-bootstrap.rb, sip-test.sh</pre></div>
 </section>
 
 <section id="security">
