@@ -73,6 +73,34 @@ SCENARIOS: dict[str, dict] = {
         ],
         "expect": {"path": ["router", "support"], "ticket_type": "support"},
     },
+    # ---- Phase 3: answers must come from the knowledge base (samples/knowledge) ----
+    "kb_pricing": {
+        "workflow": "sales",
+        "lines": [
+            ("en-IN", "Hi, how much does the Business plan cost per month?"),
+            ("en-IN", "And if I buy the annual plan, can I get a refund later?"),
+            ("en-IN", "Okay, that's all I needed. Thanks, bye."),
+        ],
+        # each group: the agent must say at least one of these (case-insensitive)
+        "expect": {"says": [["1,299", "1299", "thousand two hundred", "twelve hundred"], ["30 days", "thirty days"]]},
+    },
+    "kb_hindi_support": {
+        "workflow": "support",
+        "lines": [
+            ("hi-IN", "नमस्ते, मेरा थर्मल प्रिंटर बिल प्रिंट नहीं कर रहा है।"),
+            ("hi-IN", "ठीक है, मैं कोशिश करता हूँ। धन्यवाद, बस इतना ही।"),
+        ],
+        "expect": {"says": [["bluetooth", "ब्लूटूथ"]]},
+    },
+    "kb_unknown": {
+        "workflow": "sales",
+        "lines": [
+            ("en-IN", "Does QuickBill integrate with Shopify?"),
+            ("en-IN", "No, that's fine. Bye."),
+        ],
+        # not in the KB: must not claim it does; should defer to a specialist
+        "expect": {"says": [["specialist", "confirm", "check", "team"]], "not_says": ["yes, quickbill integrates", "yes, it integrates"]},
+    },
 }
 
 
@@ -223,6 +251,13 @@ async def main(name: str) -> int:
             ok = False; print(f"FAIL: expected a {exp['ticket_type']} ticket")
         if exp.get("path") and call["agentPath"][: len(exp["path"])] != exp["path"]:
             ok = False; print(f"FAIL: expected path {exp['path']}")
+        said = " ".join((t.get("agent_text") or "") for t in turns).lower()
+        for group in exp.get("says", []):
+            if not any(g.lower() in said for g in group):
+                ok = False; print(f"FAIL: agent never said any of {group}")
+        for bad in exp.get("not_says", []):
+            if bad.lower() in said:
+                ok = False; print(f"FAIL: agent said '{bad}'")
         print("RESULT:", "PASS" if ok else "FAIL")
         return 0 if ok else 1
 
