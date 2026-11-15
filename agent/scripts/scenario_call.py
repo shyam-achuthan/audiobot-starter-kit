@@ -171,8 +171,23 @@ async def main(name: str) -> int:
     async with aiohttp.ClientSession() as http, aiohttp.ClientSession(proxy=proxy) as ext:
         print(f"scenario={name} workflow={sc['workflow']} — synthesising {len(sc['lines'])} caller lines…")
         clips = [(lang, text, await synth(ext, lang, text)) for lang, text in sc["lines"]]
-        async with http.post(f"{API_URL}/v1/livekit/token", json={"workflow": sc["workflow"]}) as r:
-            tok = await r.json()
+        widget_key = os.environ.get("WIDGET_KEY")
+        if widget_key:
+            # Start the call the way the website widget does: via the web proxy, with the site's Origin.
+            # (The widget's own agent answers; the scenario's workflow is ignored.)
+            web = os.environ.get("WEB_URL", "http://web:3000")
+            origin = os.environ.get("WIDGET_ORIGIN", "http://localhost:8088")
+            async with http.post(f"{web}/backend/v1/widget/session", json={"key": widget_key},
+                                 headers={"Origin": origin}) as r:
+                tok = await r.json()
+                if r.status >= 400:
+                    print(f"FAIL: widget session refused: {tok}")
+                    return 1
+            print(f"widget session ok (max {tok.get('maxMinutes')} min)")
+        else:
+            async with http.post(f"{API_URL}/v1/livekit/token", json={"workflow": sc["workflow"]},
+                                 headers={"Authorization": f"Bearer {os.environ.get('AGENT_API_TOKEN', '')}"}) as r:
+                tok = await r.json()
 
         room = rtc.Room()
         state = {"agent": "initializing", "changed": time.monotonic(), "call_id": None, "ended": False}
@@ -254,6 +269,8 @@ async def main(name: str) -> int:
         async with http.get(f"{API_URL}/v1/calls/{call_id}", headers=headers) as r:
             call = await r.json()
         print("\n--- stored ---")
+        if call.get("widgetId"):
+            print(f"widget: {call['widgetId']}")
         print(f"call: status={call['status']} outcome={call['outcome']} path={call['agentPath']} "
               f"turns={call['turnCount']} median_e2e={call['medianE2eMs']}ms caller={call['callerName']} {call['callerPhone']}")
         for lead in call.get("leads", []):

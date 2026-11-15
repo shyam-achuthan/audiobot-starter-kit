@@ -28,6 +28,8 @@ class CallInfo:
     ticket_ref: str | None = None
     context: str | None = None  # outbound: what the call is about
     sip_identity: str | None = None
+    widget_id: str | None = None  # website widget the call came from
+    max_minutes: int | None = None  # call length cap (widgets)
 
 
 def describe(participant: rtc.RemoteParticipant) -> CallInfo:
@@ -36,7 +38,11 @@ def describe(participant: rtc.RemoteParticipant) -> CallInfo:
     except json.JSONDecodeError:
         meta = {}
     if participant.kind != rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
-        return CallInfo(channel=meta.get("channel", "web"), workflow=meta.get("workflow"))
+        max_minutes = meta.get("maxMinutes")
+        return CallInfo(
+            channel=meta.get("channel", "web"), workflow=meta.get("workflow"), widget_id=meta.get("widgetId"),
+            max_minutes=int(max_minutes) if isinstance(max_minutes, (int, float)) and max_minutes > 0 else None,
+        )
     attrs = participant.attributes or {}
     outbound = meta.get("direction") == "outbound"
     return CallInfo(

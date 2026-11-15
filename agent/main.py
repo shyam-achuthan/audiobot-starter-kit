@@ -107,7 +107,7 @@ async def entrypoint(ctx: JobContext) -> None:
     try:
         call.call_id = (await api.create_call(
             ctx.room.name, workflow, channel=info.channel, direction=info.direction,
-            remote_number=info.remote_number, local_number=info.local_number,
+            remote_number=info.remote_number, local_number=info.local_number, widget_id=info.widget_id,
         ))["id"]
     except ApiError as e:
         logger.error("could not create call record: %s", e.message)
@@ -243,6 +243,25 @@ async def entrypoint(ctx: JobContext) -> None:
         ctx.shutdown(reason="session closed")
 
     session.on("close", on_close)
+
+    if info.max_minutes:
+        # Widget calls have a length cap: warn a minute before, then say goodbye and hang up.
+        async def enforce_limit(minutes: int) -> None:
+            await asyncio.sleep(max(30, minutes * 60 - 60))
+            session.generate_reply(instructions=(
+                "Tell the caller, in one short sentence, that this call will end in about a minute, and offer "
+                "to book a callback if they still need help."))
+            await asyncio.sleep(60)
+            logger.info("call reached its %d-minute limit; ending", minutes)
+            await session.generate_reply(instructions="Say a short, polite goodbye.").wait_for_playout()
+            ctx.shutdown(reason="call length limit")
+
+        limit_task = asyncio.create_task(enforce_limit(info.max_minutes))
+
+        async def stop_limit() -> None:
+            limit_task.cancel()
+
+        ctx.add_shutdown_callback(stop_limit)
 
     telemetry.publish({"type": "agent.ready", "workflow": workflow, "callId": call.call_id, "phase": 4})
     await session.start(

@@ -53,8 +53,11 @@ class ApiClient:
 
     # ---- calls ----
     async def create_call(self, room: str, workflow: str, channel: str = "web", *, direction: str = "inbound",
-                          remote_number: str | None = None, local_number: str | None = None) -> dict:
+                          remote_number: str | None = None, local_number: str | None = None,
+                          widget_id: str | None = None) -> dict:
         body = {"room": room, "workflow": workflow, "channel": channel, "direction": direction}
+        if widget_id:
+            body["widgetId"] = widget_id
         if remote_number:
             body["remoteNumber"] = remote_number
         if local_number:

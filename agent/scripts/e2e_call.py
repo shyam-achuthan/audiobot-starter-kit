@@ -77,7 +77,8 @@ async def main(workflow: str) -> None:
         print("synthesising caller audio…")
         clips = [(lang, text, await synth(http, lang, text)) for lang, text in UTTERANCES]
 
-        async with http.post(f"{API_URL}/v1/livekit/token", json={"workflow": workflow}) as r:
+        async with http.post(f"{API_URL}/v1/livekit/token", json={"workflow": workflow},
+                             headers={"Authorization": f"Bearer {os.environ.get('AGENT_API_TOKEN', '')}"}) as r:
             r.raise_for_status()
             tok = await r.json()
 
