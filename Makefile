@@ -1,10 +1,10 @@
 SHELL := /bin/bash
 COMPOSE := docker compose
 
-.PHONY: help setup env ip up up-all build down logs ps health admin-password clean
+.PHONY: help setup env ip up up-crm crm-setup up-all build down logs ps health admin-password clean
 
 help: ## Show targets
-	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-10s\033[0m %s\n",$$1,$$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}'
 
 setup: ## Guided one-command setup (checks, .env, keys, build, start, verify)
 	@./setup.sh
@@ -18,6 +18,13 @@ ip: env ## Re-detect LAN IP and restart LiveKit (after a network change)
 up: env ## Start the core stack
 	@$(COMPOSE) up -d --build
 	@$(MAKE) --no-print-directory ps
+
+up-crm: env ## Start core + local Twenty CRM and Chatwoot (crm profile)
+	@$(COMPOSE) --profile crm up -d --build
+	@$(MAKE) --no-print-directory ps
+
+crm-setup: ## Connect the local Chatwoot (automatic) and Twenty (guided) to AudioBots
+	@./scripts/crm-setup.sh
 
 up-all: env ## Start core + every optional profile
 	@$(COMPOSE) --profile '*' up -d --build
