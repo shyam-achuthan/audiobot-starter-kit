@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 COMPOSE := docker compose
 
-.PHONY: help setup env ip up up-all build down logs ps health clean
+.PHONY: help setup env ip up up-all build down logs ps health admin-password clean
 
 help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-10s\033[0m %s\n",$$1,$$2}'
@@ -36,6 +36,10 @@ ps: ## Show service status
 
 health: ## Check API readiness (db, livekit, litellm)
 	@curl -s localhost:4000/health | python3 -m json.tool
+
+admin-password: ## Set an admin's password or create an owner (make admin-password email=you@example.com)
+	@test -n "$(email)" || (echo "usage: make admin-password email=you@example.com" && exit 2)
+	@$(COMPOSE) exec api node dist/cli/admin-password.js $(email)
 
 clean: ## Stop and DELETE all data volumes
 	@$(COMPOSE) --profile '*' down -v
