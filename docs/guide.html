@@ -182,6 +182,7 @@ footer { color: var(--faint); font-size: .85rem; border-top: 1px solid var(--bor
     <li><a href="#latency">Latency</a></li>
     <li><a href="#languages">Languages</a></li>
     <li class="group">Use</li>
+    <li><a href="#setup-knowledge">Setup &amp; knowledge</a></li>
     <li><a href="#demo">Demo page</a></li>
     <li><a href="#workflows">Workflows</a></li>
     <li><a href="#data-api">Data &amp; API</a></li>
@@ -217,8 +218,10 @@ footer { color: var(--faint); font-size: .85rem; border-top: 1px solid var(--bor
     <div class="card"><h3>Latency telemetry</h3><p>Every turn's timings (end of turn, STT, LLM, TTS, total) are logged and shown live on the demo page.</p></div>
     <div class="card"><h3>Workflow agents</h3><p>A receptionist hands off to lead-qualification, sales or support agents, keeping the conversation history.</p></div>
     <div class="card"><h3>Saved to Postgres</h3><p>Every call, turn, lead, support ticket and callback request is stored through the NestJS API (Sequelize).</p></div>
+    <div class="card"><h3>Knowledge base</h3><p>Agents answer from your documents, FAQs and web pages, in any supported language, and quote prices only from them.</p></div>
+    <div class="card"><h3>Visual setup</h3><p>Business profile and knowledge are managed on admin pages, not in config files.</p></div>
   </div>
-  <div class="callout warn"><strong>Status:</strong> Phases 0–2 are done: the stack, the voice loop, and workflows with tools and storage. The knowledge base, admin dashboard, CRM sync, recording and SIP come in later phases. See the <a href="#roadmap">roadmap</a>.</div>
+  <div class="callout warn"><strong>Status:</strong> Phases 0–3 are done: the stack, the voice loop, workflows with tools and storage, and the knowledge base with visual product setup. The full admin dashboard, CRM sync, recording and SIP come in later phases. See the <a href="#roadmap">roadmap</a>.</div>
 </section>
 
 <section id="quickstart">
@@ -375,7 +378,7 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
       <text x="526" y="326" class="t-sub">aliases · fallbacks · :4100</text>
       <rect x="740" y="280" width="220" height="66" rx="10" class="box"/>
       <text x="756" y="306" class="t-title">NestJS API</text>
-      <text x="756" y="326" class="t-sub">calls · leads · tickets · :4000</text>
+      <text x="756" y="326" class="t-sub">calls · leads · tickets · knowledge</text>
 
       <path d="M900 184 V278" class="wire" marker-end="url(#ah)"/>
       <path d="M880 108 Q880 250 640 278" class="wire" marker-end="url(#ah)"/>
@@ -385,7 +388,7 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
 
       <rect x="510" y="380" width="140" height="62" rx="10" class="box"/>
       <text x="524" y="405" class="t-title">Postgres</text>
-      <text x="524" y="424" class="t-sub">calls, leads, tickets</text>
+      <text x="524" y="424" class="t-sub">data + pgvector search</text>
       <rect x="665" y="380" width="120" height="62" rx="10" class="box"/>
       <text x="679" y="405" class="t-title">Redis</text>
       <text x="679" y="424" class="t-sub">LiveKit state</text>
@@ -488,7 +491,9 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
     <tr><th>Stage</th><th>Measured</th><th>Notes</th></tr>
     <tr><td>Sarvam STT final, when flushed at end of speech</td><td class="num">≈ 130 ms</td><td>Not flushed: about 590 ms. The realtime endpoint was no faster (about 150 ms).</td></tr>
     <tr><td>End-of-turn decision in the agent</td><td class="num">≈ 780–840 ms</td><td>0.25 s VAD + 0.3 s min delay + flush. The worst case is capped at 1.2 s.</td></tr>
-    <tr><td>Gemini Flash-Lite, first token (AI Studio)</td><td class="num">≈ 0.8–1.7 s</td><td>Varies by turn. Vertex Mumbai is the next experiment.</td></tr>
+    <tr><td>Gemini 3.5 Flash, thinking off, <em>with tools</em> (current <code>agent-fast</code>)</td><td class="num">≈ 0.7 s</td><td>Time to a tool call or first token</td></tr>
+    <tr><td>Gemini Flash-Lite with tools</td><td class="num">≈ 4.5–8.5 s</td><td>Flash-Lite now reasons before tool calls, so it's only used as a quota fallback</td></tr>
+    <tr><td>Knowledge search (embedding + pgvector)</td><td class="num">≈ 0.5 s</td><td>Added on turns that search</td></tr>
     <tr><td>Gemini 3.5 Flash, thinking off</td><td class="num">≈ 1.8 s</td><td>Used as <code>agent-smart</code></td></tr>
     <tr><td>Gemini 3.8 Flash / flash-latest</td><td class="num">&gt; 30 s</td><td>Always thinks before answering, so it's unusable for voice</td></tr>
     <tr><td>Sarvam TTS, first audio (streaming)</td><td class="num">≈ 190 ms</td><td>About 320 ms on a cold connection. <code>bulbul:v3</code> ≈ <code>v4-flash</code>.</td></tr>
@@ -502,7 +507,7 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
     <tr><td><code>ENDPOINTING_MIN_DELAY</code></td><td>0.3</td><td>Extra wait before committing a turn. Lower is faster but cuts off more callers.</td></tr>
     <tr><td><code>ENDPOINTING_MAX_DELAY</code></td><td>1.2</td><td>Cap when the turn detector thinks the caller is mid-sentence</td></tr>
     <tr><td><code>PREEMPTIVE_GENERATION</code></td><td>true</td><td>Start the LLM as soon as a final transcript arrives</td></tr>
-    <tr><td><code>LLM_MODEL</code></td><td>agent-fast</td><td>Alias in LiteLLM: <code>agent-fast</code>, <code>agent-lite</code>, <code>agent-smart</code>, <code>agent-claude</code></td></tr>
+    <tr><td><code>LLM_MODEL</code></td><td>agent-fast</td><td>Alias in LiteLLM: <code>agent-fast</code> (Gemini 3.5 Flash, thinking off), <code>agent-lite</code> (Flash-Lite), <code>agent-smart</code>, <code>agent-claude</code></td></tr>
   </table></div>
   <p>Compare settings with real scripted calls: <code>scripts/tune-latency.sh</code>.</p>
 </section>
@@ -516,6 +521,31 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
     <tr><td>Tamil, Telugu, Kannada, Malayalam</td><td>✓</td><td>✓</td><td>Silence-based (min delay)</td></tr>
   </table></div>
   <p>Sarvam detects the language on every utterance (<code>STT_LANGUAGE=unknown</code>). When it changes, the agent switches the TTS voice language and pins the reply language in the LLM instructions. Small models otherwise drift back to the language of earlier messages. All six languages passed a TTS → STT round-trip test word for word.</p>
+</section>
+
+<section id="setup-knowledge">
+  <h2>Setup &amp; knowledge</h2>
+  <p>Everything the agents know about your business is managed in the browser at <a href="http://localhost:3000/admin">localhost:3000/admin</a>. No config files are involved.</p>
+  <ol class="steps">
+    <li><strong>Business profile</strong> (<code>/admin/setup</code>) Name, what you offer, industry, website, support hours, callback hours and extra instructions (e.g. "Always mention the 14-day free trial"). Agents read this at the start of every call, so changes apply to the next call.</li>
+    <li><strong>Knowledge</strong> (<code>/admin/knowledge</code>) Create a knowledge base, choose its embedding model and which agents may use it, then add sources. Each source shows live status: <em>pending → processing → ready</em> (or <em>error</em> with the reason, and a Retry button).</li>
+    <li><strong>Test</strong> Use <em>Test search</em> on the knowledge page to see exactly what agents will find, then try a call on <a href="http://localhost:3000/demo">/demo</a> and mark setup complete.</li>
+  </ol>
+  <div class="table-wrap"><table>
+    <tr><th>Source</th><th>How</th><th>Notes</th></tr>
+    <tr><td>Files</td><td>Drag and drop, or choose files</td><td>PDF, Word (.docx), .txt, .md, up to 15 MB each. Scanned PDFs need OCR first.</td></tr>
+    <tr><td>FAQ</td><td>Question + answer form</td><td>Best for precise, short spoken answers. Each FAQ is one searchable unit.</td></tr>
+    <tr><td>Website</td><td>A page URL, or a <code>sitemap.xml</code> (up to 200 pages)</td><td>Public sites only. Private, local and Docker-internal addresses are blocked. Pages that need JavaScript to show content can't be read.</td></tr>
+  </table></div>
+  <h3>How agents use it</h3>
+  <ul>
+    <li>Every agent has a <code>search_knowledge</code> tool. Sales and support call it for questions about products, plans, prices, policies, hours and troubleshooting. Support searches for the documented fix before suggesting anything.</li>
+    <li><strong>Prices and policies are only quoted from search results.</strong> If the answer isn't in the knowledge base, the agent says a specialist will confirm and offers a callback. It never guesses.</li>
+    <li>Search works across languages: a Hindi or Tamil question finds English documents, and the agent answers in the caller's language. Only results scoring 0.45 or higher are used.</li>
+    <li>Text is split into ~800-character chunks on sentence boundaries (including <code>।</code>) and embedded with <code>embed-gemini</code> (Gemini embeddings, 768 dimensions) through LiteLLM. Changing a knowledge base's embedding model re-indexes it automatically.</li>
+  </ul>
+  <div class="callout tip"><strong>Try it with sample data.</strong> <code>samples/knowledge/</code> has a fictional product, QuickBill: a price list (Markdown), policies (Word) and a troubleshooting guide (PDF). Upload all three on the knowledge page, set the business name to QuickBill, and ask the demo about the Business plan price or refunds.</div>
+  <div class="callout warn"><strong>Protect the admin area</strong> before exposing the server: set <code>ADMIN_PASSWORD</code> (and optionally <code>ADMIN_USER</code>) in <code>.env</code> to require a browser login for <code>/admin</code>. Full admin accounts arrive in Phase 4.</div>
 </section>
 
 <section id="demo">
@@ -560,6 +590,10 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
     <tr><td><code>call_turns</code></td><td>Every turn: agent, language, caller text, agent text, interrupted flag, and latency per stage (end of turn, STT, LLM, TTS, total)</td></tr>
     <tr><td><code>leads</code></td><td>Name, phone (+91…), email, company, need, team size, budget, authority, timeline, score, status (new / qualified / unqualified / callback), preferred callback time</td></tr>
     <tr><td><code>tickets</code></td><td>Support issues and callback requests: number (TKT-1001 upwards), type, subject, description, priority, status, contact, preferred callback time</td></tr>
+    <tr><td><code>business_profiles</code></td><td>Single row edited on the Setup page: name, description, industry, website, hours, extra instructions, setup completed</td></tr>
+    <tr><td><code>knowledge_bases</code></td><td>Name, embedding model, vector size, which agents may use it</td></tr>
+    <tr><td><code>kb_documents</code></td><td>Sources (file, FAQ, URL) with extracted text, status, error and chunk count</td></tr>
+    <tr><td><code>kb_chunks</code></td><td>Text chunks with their pgvector embedding (HNSW-indexed for cosine search)</td></tr>
   </table></div>
   <p class="muted">Call outcome only moves up in priority: <code>callback_requested</code> &gt; <code>ticket_created</code> &gt; <code>lead_captured</code> &gt; <code>info_only</code> &gt; <code>abandoned</code>.</p>
   <h3>Endpoints</h3>
@@ -573,6 +607,11 @@ gcloud iam service-accounts keys create infra/litellm/secrets/vertex-sa.json \
     <tr><td><code>POST /v1/leads</code>, <code>PATCH /v1/leads/:id</code>, <code>GET /v1/leads[/:id]</code></td><td>Create or partially update leads (empty fields never overwrite saved ones)</td></tr>
     <tr><td><code>POST /v1/tickets</code>, <code>PATCH /v1/tickets/:ref</code>, <code>GET /v1/tickets[/:ref]</code></td><td>Tickets. <code>:ref</code> accepts <code>TKT-1004</code>, <code>1004</code> or a UUID</td></tr>
     <tr><td><code>GET /v1/tickets/lookup?ref=…|phone=…</code></td><td>Voice lookup: by ticket number, or the caller's latest three tickets by phone</td></tr>
+    <tr><td><code>GET|PUT /v1/profile</code></td><td>Business profile</td></tr>
+    <tr><td><code>GET|POST /v1/knowledge</code>, <code>GET|PATCH|DELETE /v1/knowledge/:id</code></td><td>Knowledge bases (with per-status document counts)</td></tr>
+    <tr><td><code>POST /v1/knowledge/:id/files</code> · <code>/faqs</code> · <code>/urls</code></td><td>Add sources (multipart field <code>files</code>; FAQ <code>{question, answer}</code>; URL <code>{url, maxPages}</code>)</td></tr>
+    <tr><td><code>POST /v1/knowledge/:id/reindex</code>, <code>…/documents/:docId/retry</code>, <code>DELETE …/documents/:docId</code></td><td>Maintenance</td></tr>
+    <tr><td><code>POST /v1/knowledge/search</code></td><td><code>{query, workflow?, kbIds?, topK?}</code>: semantic search, used by agents and the Test search box</td></tr>
   </table></div>
   <div class="code"><pre>T=$(grep ^AGENT_API_TOKEN= .env | cut -d= -f2)
 curl -s localhost:4000/v1/calls?limit=5 -H "Authorization: Bearer $T"
@@ -583,7 +622,7 @@ curl -s localhost:4000/v1/tickets/1004  -H "Authorization: Bearer $T"</pre></div
   <h2>Services &amp; URLs</h2>
   <div class="table-wrap"><table>
     <tr><th>Service</th><th>URL / port</th><th>Purpose</th></tr>
-    <tr><td><code>web</code></td><td><a href="http://localhost:3000">localhost:3000</a></td><td>Demo page and admin (Next.js)</td></tr>
+    <tr><td><code>web</code></td><td><a href="http://localhost:3000">localhost:3000</a></td><td>Demo page and admin (Next.js): <code>/admin</code>, <code>/admin/setup</code>, <code>/admin/knowledge</code></td></tr>
     <tr><td><code>api</code></td><td><a href="http://localhost:4000/health">localhost:4000</a></td><td>NestJS: <code>/health</code>, <code>/health/live</code>, <code>POST /v1/livekit/token</code></td></tr>
     <tr><td><code>livekit</code></td><td><code>ws://localhost:7880</code>, TCP 7881, UDP 50000–50100</td><td>WebRTC media server</td></tr>
     <tr><td><code>agent</code></td><td>internal (health on :8081)</td><td>Voice agent workers</td></tr>
@@ -633,6 +672,7 @@ curl -s localhost:4000/v1/tickets/1004  -H "Authorization: Bearer $T"</pre></div
     <tr><td><code>VAD_MIN_SILENCE</code>, <code>ENDPOINTING_*</code>, <code>PREEMPTIVE_GENERATION</code></td><td>0.25, 0.3 / 1.2, true</td><td>Turn-taking (see <a href="#latency">Latency</a>)</td></tr>
     <tr><td><code>NUM_IDLE_PROCESSES</code></td><td>2</td><td>Warm agent processes. Raise this on a production host.</td></tr>
     <tr><td><code>OUTBOUND_PROXY</code></td><td>empty</td><td>Optional HTTP proxy for provider traffic (Sarvam from the agent, Gemini and others from LiteLLM). Internal services always connect directly.</td></tr>
+    <tr><td><code>ADMIN_USER</code> / <code>ADMIN_PASSWORD</code></td><td>admin / empty</td><td>Browser login for <code>/admin</code>. Empty means open, which is fine only on your own machine.</td></tr>
     <tr><td><code>AUTO_MIGRATE</code></td><td>true</td><td>Apply database migrations when the API starts</td></tr>
     <tr><td><code>CORS_ORIGINS</code></td><td><code>http://localhost:3000</code></td><td>Origins allowed to call the API (websites embedding the widget)</td></tr>
   </table></div>
@@ -664,13 +704,16 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/sarv
 # streaming TTS first-audio latency, STT finalization latency
 docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/tts_latency.py
 docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_latency.py</pre></div>
-  <p class="muted">Each script call uses your Sarvam and Gemini quota (a few cents).</p>
+  <p class="muted">Each script call uses your Sarvam and Gemini quota. A scenario makes 5–15 LLM requests, so the Gemini free tier (20 requests a day per model) runs out after one or two runs.</p>
   <div class="table-wrap"><table>
     <tr><th>Scenario</th><th>Checks</th><th>Last result</th></tr>
     <tr><td><code>support</code></td><td>Problem, then name and phone, then confirm. A support ticket is created and the agent ends the call.</td><td class="status-done">PASS</td></tr>
     <tr><td><code>lead</code></td><td>Full BANT qualification, score, callback ticket with preferred time</td><td class="status-done">PASS (score 95)</td></tr>
     <tr><td><code>sales_hi</code></td><td>Hindi pricing question, no price quoted, callback booked in Hindi</td><td class="status-done">PASS</td></tr>
     <tr><td><code>router_support</code></td><td>Receptionist transfers to support without asking. Phone is confirmed, then a ticket is created.</td><td class="status-done">PASS</td></tr>
+    <tr><td><code>kb_pricing</code></td><td>Quotes "₹1,299 per month plus 18% GST" and the 30-day refund rule from the sample docs</td><td class="status-done">PASS</td></tr>
+    <tr><td><code>kb_hindi_support</code></td><td>Hindi printer problem, answered in Hindi with the documented Bluetooth step</td><td class="status-done">PASS</td></tr>
+    <tr><td><code>kb_unknown</code></td><td>Shopify question that isn't in the docs: defers to a specialist and doesn't invent an answer</td><td class="status-done">PASS</td></tr>
   </table></div>
 </section>
 
@@ -694,9 +737,10 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
 │   ├── languages.py         supported languages
 │   └── scripts/             e2e call + benchmarks
 ├── api/                     NestJS + Sequelize
-│   └── src/                 calls/ leads/ tickets/ livekit/ health/
+│   └── src/                 calls/ leads/ tickets/ knowledge/ profile/ livekit/ health/
 │       └── database/        models.ts, migrations/, migrator.ts
-├── web/                     Next.js (/demo, /admin)
+├── web/                     Next.js: /demo, /admin (setup, knowledge), /admin-api proxy
+├── samples/knowledge/       fictional QuickBill docs for demos and tests
 ├── infra/
 │   ├── livekit/livekit.yaml
 │   ├── litellm/config.yaml  model aliases, fallbacks
@@ -731,6 +775,8 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
     <tr><td>Port already in use</td><td>Another app holds one of the published ports. Stop it, or change the host-side port in <code>docker-compose.yml</code>.</td></tr>
     <tr><td><code>.env</code> not writable</td><td>It was edited with <code>sudo</code>. Run <code>sudo chown $(whoami) .env</code>.</td></tr>
     <tr><td>Containers have no internet (npm or pip hang during build, agent can't reach Sarvam) while the Mac is fine</td><td>Check IPv4: <code>curl -4 -m 8 https://www.google.com</code>. Docker's container network uses IPv4 only. On some networks only IPv6 works (seen on a home router, and with VPN kill switches), and Sarvam has IPv4 addresses only. Fix the network (restart the router, turn off the VPN kill switch, or try another network). For a corporate proxy, set <code>OUTBOUND_PROXY</code>.</td></tr>
+    <tr><td>Agent goes quiet for 20 s or more, or the call drops; LiteLLM logs show <code>429 RESOURCE_EXHAUSTED</code></td><td>Your Gemini key hit its quota. The <strong>free tier allows only 20 requests per day per model</strong>, which a few test calls use up. Enable billing for the key in Google AI Studio (pay-as-you-go), or use Vertex AI. Until then LiteLLM falls back to Flash-Lite automatically: calls keep working, but turns that use tools are slower.</td></tr>
+    <tr><td>A source stays in <em>error</em> on the knowledge page</td><td>The error text says why: e.g. "No readable text found" (scanned PDF without OCR), "too little readable text" (page needs JavaScript), or "Private, local or internal addresses are not allowed". Fix it and press Retry.</td></tr>
     <tr><td>Agent says it will save or book something, then asks for the number again</td><td>A tool refused the request; see <code>make logs s=agent</code> and search for <code>ToolError</code>. The message says why, e.g. "phone is not a valid number".</td></tr>
     <tr><td>Bot replies in the wrong language</td><td>Check the agent logs for <code>language switch</code> lines. If STT detects correctly but the reply drifts, try <code>LLM_MODEL=agent-smart</code>.</td></tr>
   </table></div>
@@ -744,7 +790,7 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
     <tr><td>1</td><td>Voice loop: Sarvam STT/TTS, Gemini via LiteLLM, turn-taking, latency telemetry</td><td class="status-done">Done</td></tr>
     <tr><td>1b</td><td>Latency: Vertex AI Mumbai benchmark, then the next LLM option</td><td class="status-next">Waiting on Vertex key</td></tr>
     <tr><td>2</td><td>Workflows with tools and handoffs; calls, turns, leads and tickets in Postgres (Sequelize)</td><td class="status-done">Done</td></tr>
-    <tr><td>3</td><td>Knowledge base / RAG with selectable embedding providers</td><td>Planned</td></tr>
+    <tr><td>3</td><td>Knowledge base / RAG with selectable embedding providers, visual product setup</td><td class="status-done">Done</td></tr>
     <tr><td>4</td><td>Admin dashboard: agents, prompts, voices, calls, leads, latency charts</td><td>Planned</td></tr>
     <tr><td>5</td><td>Webhooks, plus Twenty CRM and Chatwoot sync</td><td>Planned</td></tr>
     <tr><td>6</td><td>Call recording (consent) to RustFS, Langfuse tracing</td><td>Planned</td></tr>
@@ -755,7 +801,7 @@ docker compose run --rm --no-deps -v "$PWD/agent:/app" agent python scripts/stt_
   <p class="muted">Full decisions and details: <code>PLAN.md</code>.</p>
 </section>
 
-<footer>AudioBots starter kit · guide reflects the code as of Phase 2 (Nov 2026).</footer>
+<footer>AudioBots starter kit · guide reflects the code as of Phase 3 (Nov 2026).</footer>
 </main>
 </div>
 

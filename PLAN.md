@@ -15,8 +15,8 @@ Uses open-source parts wherever it can. Every provider can be swapped by config.
 | Provider strategy | **Hybrid and pluggable**: start on hosted APIs. Self-hosted open models are added later as containers and switched on by config |
 | STT | **Sarvam `saaras:v4`** (hosted; Saarika models are retired). Language auto-detected, code-mixed speech supported |
 | TTS | **Sarvam `bulbul:v3`** (hosted). The voice switches to the caller's language |
-| LLM | **LiteLLM gateway** (self-hosted). Default `agent-fast` = **Gemini Flash-Lite** (thinking models were too slow for voice); `agent-smart` = Gemini 3.5 Flash with thinking off; GPT-4o-mini / Claude Haiku as fallbacks |
-| Embeddings | **Configurable through LiteLLM**: Vertex AI, AWS Bedrock, OpenRouter, or a local BGE-M3 container. Chosen per knowledge base in Admin |
+| LLM | **LiteLLM gateway** (self-hosted). Default `agent-fast` = **Gemini 3.5 Flash with thinking off** (~0.7 s to a tool call; Flash-Lite now reasons before tool calls and takes 4.5–8.5 s). Immediate fallback on quota errors: agent-fast → agent-lite → GPT-4o-mini. **Production needs a paid Gemini key** (free tier: 20 requests/day/model) |
+| Embeddings | **Configurable through LiteLLM**, chosen per knowledge base in Admin. Default `embed-gemini` (Gemini embeddings, 768 dims). Vertex AI, Bedrock, OpenRouter or local BGE-M3 can be added as `embed-*` aliases |
 | VAD / turn-taking | Silero VAD and the LiveKit multilingual turn-detector, with interruption (barge-in) support |
 | Workflows (v1) | Router/Receptionist, then Lead Qualification, Sales and Support (with handoffs between them) |
 | System of record | **Own Postgres with pgvector**, plus **outbound webhooks** |
@@ -153,7 +153,7 @@ Target **≤ 800 ms** from the user stopping to the bot's first audio. Stretch g
 | 0 ✅ | **Scaffold**: repo, compose `core`, Postgres init, `.env.example`, Makefile | `make up` boots LiveKit, API, web and the agent, all healthy |
 | 1 ✅ | **Voice loop**: Sarvam STT/TTS, LiteLLM to Gemini, VAD, turn detection, barge-in, latency metrics | Talking on `/demo` in English, Hindi and Tamil works, with per-turn latency logged |
 | 2 ✅ | **Workflows**: Router plus the 3 agents, handoffs, tools against the NestJS API, calls and turns stored | Each flow can be completed end-to-end (scripted scenario calls pass), and the lead, ticket and callback rows appear in Postgres |
-| 3 | **Knowledge base / RAG**: upload, chunk, embed (provider chosen per KB), pgvector search | Sales and Support answer from uploaded docs, and switching the embedding provider re-indexes |
+| 3 ✅ | **Knowledge base / RAG**: upload, chunk, embed (provider chosen per KB), pgvector search | Sales and Support answer from uploaded docs, and switching the embedding provider re-indexes |
 | 4 | **Admin dashboard**: agents (prompts, models, voices), knowledge bases, calls with transcript and audio, leads, tickets, latency charts | Agent behaviour can be changed from the UI without a redeploy |
 | 5 | **Integrations**: outbound webhooks with retries, Twenty and Chatwoot sync (`crm` profile) | A lead shows up in Twenty and a ticket in Chatwoot automatically |
 | 6 | **Recording and observability**: Egress to RustFS, consent flow, Langfuse traces | Every call has a recording (if consented) and a full LLM trace |
