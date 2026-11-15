@@ -46,6 +46,13 @@ fill AGENT_API_TOKEN "$(rand 40)"
 fill CHATWOOT_WEBHOOK_TOKEN "$(rand 32)"
 fill TWENTY_APP_SECRET "$(rand 48)"
 fill CHATWOOT_SECRET_KEY_BASE "$(rand 96)"
+fill LANGFUSE_ADMIN_PASSWORD "$(rand 20)"
+fill LANGFUSE_PUBLIC_KEY "pk-lf-$(rand 24)"
+fill LANGFUSE_SECRET_KEY "sk-lf-$(rand 32)"
+fill LANGFUSE_SALT "$(rand 32)"
+fill LANGFUSE_ENCRYPTION_KEY "$(openssl rand -hex 32)"
+fill LANGFUSE_NEXTAUTH_SECRET "$(rand 40)"
+fill CLICKHOUSE_PASSWORD "$(rand 24)"
 
 # Detect the LAN IP of the default interface (macOS, then Linux).
 IP=""

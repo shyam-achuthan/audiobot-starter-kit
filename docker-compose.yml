@@ -1,7 +1,7 @@
 name: audiobots
 
 # Core services have no profile and always start.
-# Optional profiles (added in later phases): sip, recording, observability, crm, local-models.
+# Optional profiles: recording, observability, crm (built); sip, local-models (later phases).
 
 x-livekit-env: &livekit-env
   LIVEKIT_URL: ws://livekit:7880
@@ -97,7 +97,9 @@ services:
       # Optional proxy for provider traffic (empty = direct). Internal hosts bypass it.
       HTTPS_PROXY: ${OUTBOUND_PROXY:-}
       HTTP_PROXY: ${OUTBOUND_PROXY:-}
-      NO_PROXY: localhost,127.0.0.1,api,agent,livekit,postgres,redis,rustfs,web
+      NO_PROXY: localhost,127.0.0.1,api,agent,livekit,postgres,redis,rustfs,web,langfuse-web
+      # Langfuse keys come from .env (generated); the host is the bundled Langfuse.
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse-web:3000}
     volumes:
       - ./infra/litellm/config.yaml:/app/config.yaml:ro
       - ./infra/litellm/secrets:/secrets:ro
@@ -297,9 +299,133 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
+  # ---------------------------------------------------------- recording profile (Phase 6)
+  # LiveKit Egress records consented calls as one mixed OGG/Opus file per call into RustFS.
+  # The API starts/stops it (api/src/recordings); calls work normally without this profile.
+  egress:
+    image: livekit/egress:v1.15.0
+    profiles: [recording]
+    environment:
+      EGRESS_CONFIG_BODY: |
+        log_level: info
+        api_key: ${LIVEKIT_API_KEY}
+        api_secret: ${LIVEKIT_API_SECRET}
+        ws_url: ws://livekit:7880
+        insecure: true
+        health_port: 8080
+        redis:
+          address: redis:6379
+        storage:
+          s3:
+            access_key: ${S3_ACCESS_KEY}
+            secret: ${S3_SECRET_KEY}
+            region: us-east-1
+            endpoint: http://rustfs:9000
+            bucket: ${S3_BUCKET_RECORDINGS}
+            force_path_style: true
+    # Room composite recordings run a headless Chrome.
+    shm_size: 512mb
+    depends_on:
+      livekit:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ------------------------------------------------------ observability profile (Phase 6)
+  # Self-hosted Langfuse: LiteLLM sends every LLM call here, tagged with the call id.
+  # Headless setup: org, project, API keys and the login come from .env (make env generates them).
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.12.11.4
+    profiles: [observability]
+    user: "101:101"
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+    volumes:
+      - clickhousedata:/var/lib/clickhouse
+      - clickhouselogs:/var/log/clickhouse-server
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:8123/ping || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  langfuse-worker:
+    image: langfuse/langfuse-worker:4.72.0
+    profiles: [observability]
+    environment: &langfuse-env
+      NEXTAUTH_URL: ${LANGFUSE_PUBLIC_URL:-http://localhost:3040}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/langfuse
+      SALT: ${LANGFUSE_SALT}
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY}
+      TELEMETRY_ENABLED: "false"
+      CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      REDIS_CONNECTION_STRING: redis://redis:6379/3
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: ${S3_BUCKET_LANGFUSE}
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: us-east-1
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://rustfs:9000
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: ${S3_BUCKET_LANGFUSE}
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: us-east-1
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://rustfs:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+    depends_on: &langfuse-deps
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      s3-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  langfuse-web:
+    image: langfuse/langfuse:4.72.0
+    profiles: [observability]
+    environment:
+      <<: *langfuse-env
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET}
+      AUTH_DISABLE_SIGNUP: "true"
+      LANGFUSE_INIT_ORG_ID: audiobots
+      LANGFUSE_INIT_ORG_NAME: AudioBots
+      LANGFUSE_INIT_PROJECT_ID: ${LANGFUSE_PROJECT_ID:-audiobots-calls}
+      LANGFUSE_INIT_PROJECT_NAME: Voice calls
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_ADMIN_EMAIL:-admin@example.com}
+      LANGFUSE_INIT_USER_NAME: Admin
+      LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_ADMIN_PASSWORD}
+    ports:
+      - "127.0.0.1:3040:3000"
+    depends_on: *langfuse-deps
+    healthcheck:
+      # Langfuse listens on the container hostname, not 127.0.0.1.
+      test: ["CMD-SHELL", "wget -qO- http://$${HOSTNAME}:3000/api/public/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 20
+    restart: unless-stopped
+
 volumes:
   pgdata:
   redisdata:
   s3data:
   twentydata:
   chatwootdata:
+  clickhousedata:
+  clickhouselogs:
