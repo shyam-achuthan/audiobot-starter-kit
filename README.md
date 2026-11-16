@@ -81,14 +81,7 @@ Each is a Docker Compose profile, so the core stays light:
 
 ## Architecture
 
-```
- Browser / widget ──WebRTC──┐                      ┌── NestJS API ── Postgres (pgvector)
-                            ├── LiveKit ── Agent ──┤      │  leads, tickets, calls, knowledge,
- Phone ──SIP trunk── SIP ───┘   (Docker)  (Python) │      │  outbox → webhooks, Twenty, Chatwoot
-                                         │         └── LiteLLM ── Gemini / GPT / Claude (hosted)
-                                Sarvam STT + TTS
- Next.js dashboard + widget.js ── API        Egress → RustFS (recordings)    Langfuse (traces)
-```
+<img src="docs/architecture.svg" alt="AudioBots architecture: website and phone callers reach LiveKit; the Python voice agent uses Sarvam speech and hosted LLMs through LiteLLM; the NestJS API stores everything in Postgres, records calls to RustFS and syncs to Twenty CRM, Chatwoot and webhooks" width="100%">
 
 - **Agent** (`agent/`, LiveKit Agents, Python): the conversation, tools and handoffs.
 - **API** (`api/`, NestJS + Sequelize): the system of record, auth, recordings, telephony, widgets and the webhook outbox.
